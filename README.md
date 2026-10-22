@@ -9,7 +9,11 @@ Start dragging any file in File Explorer, press **Shift**, and drop it on a slic
 1. Start dragging a file (or several, or a folder) in File Explorer or on the desktop.
 2. Press **Shift**. The wheel opens under the cursor.
 3. Drop the file on a slice. The result is saved **next to the original**; the original is never changed.
-4. Tap **Shift** again to switch rings: **Convert → Tools → Print**.
+4. Tap **Shift** again to switch rings: **Convert → Tools → Print → File**.
+
+![The Santra-style wheel: Convert ring, a hovered slice, the Tools ring](docs/wheel-santra.png)
+
+The wheel looks like Santra's by default (warm peach slices, the slice under the cursor lights up orange). Prefer see-through liquid glass? **Settings → Wheel look**.
 
 Also: right-click any file or folder → **ShiftWheel…**, **Send to → ShiftWheel**, or double-click the tray icon. Every action ends with a notification showing what changed, with **Open**, **Show in folder** and **Undo**.
 
@@ -24,8 +28,11 @@ Also: right-click any file or folder → **ShiftWheel…**, **Send to → ShiftW
 | **Excel / CSV** (XLSX, XLS, ODS, CSV) | PDF, XLSX, CSV, JSON, HTML | Zip | |
 | **PowerPoint** (PPTX, PPT, ODP) | PDF, PNG/JPG per slide | Zip | |
 | **Word** (DOCX, DOC, RTF, ODT) · **Text** | PDF, DOCX, TXT | | |
+| **Markdown / web pages** (MD, HTML) | PDF, DOCX, HTML / TXT — rendered, not the source code | | |
 | **Archives** (ZIP, 7Z, TAR, GZ) | ZIP ⇄ 7Z | Extract | |
 | **Folders / anything else** | | Zip, 7Z | |
+
+Every wheel ends with a **File** ring: **Copy path**, **Show** (in its folder), **SHA-256** (checksum to the clipboard) and **Duplicate**.
 
 ### The Print ring
 
@@ -49,7 +56,7 @@ Drag the two handles over the filmstrip (or the waveform, for audio); the previe
 From the latest build of this repo (**Actions → Build Windows app → ShiftWheel-windows**) or a release:
 
 - **ShiftWheel-Setup.exe** (recommended) — installs for your user only (no admin), adds the Start menu entry, start-with-Windows, the right-click **ShiftWheel…** entry for files and folders, and **Send to**.
-- **ShiftWheel.exe** — portable.
+- **ShiftWheel.exe** — portable. Turn on **Settings → Show “ShiftWheel…” when you right-click a file** to get the right-click entry without installing (per-user, no admin).
 
 The app isn't code-signed, so SmartScreen may warn on first launch: **More info → Run anyway**.
 
@@ -72,7 +79,7 @@ python run.py --selftest       # what CI runs inside the built .exe
 - `tests/test_printing.py` measures the printed card (54 mm) on the generated PDF **and** on Qt's print output.
 - `tests/test_wheel_matrix.py` builds the real wheel for a photo, PDF, video, audio, spreadsheet, Word file, archive, folder and a mixed selection, triggers **every slice**, and checks each one produced a file or opened its window.
 - **CI (Windows):** unit tests → portable exe + installer → `--selftest` inside both builds (FFmpeg, OCR models, OpenCV, printing, every window) → silent install / run / uninstall.
-- **End-to-end (Windows):** `demo/e2e_windows.py` moves the real mouse: drags files in File Explorer and on the desktop, presses Shift, switches rings, drops on slices, drives the tool windows and checks every output (e.g. it measures the ID card on the saved PDF). Results and a screen recording go to the `e2e-output` branch.
+- **End-to-end (Windows):** `demo/e2e_windows.py` moves the real mouse (on your own PC run it with `--local`: test files go to `%TEMP%` and your Desktop, wallpaper and resolution are left alone): drags files in File Explorer and on the desktop, presses Shift, switches rings, drops on slices, drives the tool windows and checks every output (e.g. it measures the ID card on the saved PDF). Results and a screen recording go to the `e2e-output` branch.
 
 Logs: `%LOCALAPPDATA%\ShiftWheel\log.txt`.
 

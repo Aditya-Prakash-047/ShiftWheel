@@ -8,7 +8,7 @@ IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".heic", ".heif", ".tif", ".tiff
               ".avif", ".bmp", ".gif", ".ico"}
 PDF_EXTS = {".pdf"}
 DOCX_EXTS = {".docx"}
-TEXT_EXTS = {".txt", ".md", ".log", ".json", ".xml", ".html", ".htm"}
+TEXT_EXTS = {".txt", ".md", ".markdown", ".log", ".json", ".xml", ".html", ".htm"}
 SHEET_EXTS = {".xlsx", ".xlsm", ".xls", ".ods", ".csv", ".tsv"}
 SLIDE_EXTS = {".pptx", ".ppt", ".pps", ".ppsx", ".odp"}
 WORDDOC_EXTS = {".doc", ".rtf", ".odt"}
@@ -103,6 +103,21 @@ def sibling(src: str | Path, suffix_label: str = "", ext: str | None = None) -> 
     if not new_ext.startswith("."):
         new_ext = "." + new_ext
     return unique_path(s.with_name(stem + new_ext))
+
+
+def default_paper() -> str:
+    """'letter' where the user's region prints on Letter (US, Canada…), else 'a4'."""
+    if os.name == "nt":
+        try:
+            import ctypes
+            buf = ctypes.c_uint32()
+            # LOCALE_IPAPERSIZE | LOCALE_RETURN_NUMBER: 1 = Letter, 9 = A4
+            if ctypes.windll.kernel32.GetLocaleInfoEx(None, 0x1010 | 0x20000000, ctypes.byref(buf), 2):
+                return "letter" if buf.value == 1 else "a4"
+        except Exception:
+            pass
+    lang = os.environ.get("LC_PAPER") or os.environ.get("LANG") or ""
+    return "letter" if lang.split(".")[0] in ("en_US", "en_CA", "es_MX", "fr_CA", "en_PH") else "a4"
 
 
 def human_size(n: int | float) -> str:

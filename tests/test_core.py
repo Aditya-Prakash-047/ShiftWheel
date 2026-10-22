@@ -114,3 +114,106 @@ def test_shortcut_resolves_to_target(img, tmp_path):
     out = resolve_shortcuts([str(lnk)])
     assert Path(out[0]) == img and category(out[0]) == "image"
     assert resolve_shortcuts([str(img)]) == [str(img)]
+
+
+def test_shift_tap_switches_ring_even_when_missed_or_early():
+    from PySide6.QtWidgets import QApplication
+    from shiftwheel.trigger import TAP_GRACE, ShiftWheelWatcher
+    QApplication.instance() or QApplication([])
+    state = {"visible": True, "got_drag": False}
+    w = ShiftWheelWatcher(lambda: state["visible"], lambda: state["got_drag"])
+    flips = []
+    w.toggle_ring.connect(lambda: flips.append(1))
+    feed = iter([])
+    w._state = lambda: next(feed)
+    w._shift_was = True                                  # Shift still held from opening the menu
+
+    def run(*states):
+        nonlocal feed
+        feed = iter(states)
+        for _ in states:
+            w._tick()
+
+    held, up = (True, True, False, False), (True, False, False, False)
+    run(held, held, up)                                  # releasing Shift is not a tap
+    assert flips == []
+    run(up, (True, False, False, True))                  # a whole tap between two polls
+    assert flips == []                                   # drag not on the menu yet: kept…
+    state["got_drag"] = True
+    run(up)
+    assert flips == [1]                                  # …and applied once it arrives
+    run((True, True, False, True), held, held, up)       # an ordinary press; auto-repeat ignored
+    assert flips == [1, 1]
+    state["got_drag"] = False
+    run((True, True, False, False), *[up] * (TAP_GRACE + 2))
+    state["got_drag"] = True
+    run(up)
+    assert flips == [1, 1]                               # a stale tap expires
+
+
+@pytest.mark.skipif(__import__("sys").platform != "win32", reason="Windows registry")
+def test_right_click_menu_toggle(monkeypatch):
+    import winreg
+    from shiftwheel import settings as S
+    base = r"Software\ShiftWheelTest"
+    monkeypatch.setattr(S, "MENU_KEYS", (base + r"\file\ShiftWheel", base + r"\dir\ShiftWheel"))
+    try:
+        S.set_context_menu(True)
+        assert S.context_menu_enabled()
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, base + r"\dir\ShiftWheel\command") as k:
+            assert winreg.QueryValueEx(k, "")[0].endswith('"%1"')
+        S.set_context_menu(False)
+        assert not S.context_menu_enabled()
+    finally:
+        for sub in (r"\file\ShiftWheel\command", r"\file\ShiftWheel", r"\file", r"\dir\ShiftWheel\command",
+                    r"\dir\ShiftWheel", r"\dir", ""):
+            try:
+                winreg.DeleteKey(winreg.HKEY_CURRENT_USER, base + sub)
+            except OSError:
+                pass
+
+
+def test_markdown_and_html_render_instead_of_printing_source(tmp_path):
+    md = tmp_path / "README.md"
+    md.write_text("# Title\n\nSome **bold** text.\n\n- one\n- two\n", encoding="utf-8")
+    page = tmp_path / "page.html"
+    page.write_text("<html><head><title>T</title><style>p{color:red}</style></head>"
+                    "<body><h1>Hello</h1><p>World <b>wide</b></p><script>x=1</script></body></html>",
+                    encoding="utf-8")
+    assert convert.targets_for("text", ".md") == ["PDF", "DOCX", "HTML"]
+    assert convert.targets_for("text", ".html") == ["PDF", "DOCX", "TXT"]
+    with convert.fitz.open(convert.convert(md, "text", "PDF")[0]) as d:
+        text = d[0].get_text()
+    assert "Title" in text and "bold" in text and "#" not in text and "**" not in text
+    with convert.fitz.open(convert.convert(page, "text", "PDF")[0]) as d:
+        text = d[0].get_text()
+    assert "Hello" in text and "<h1>" not in text and "color:red" not in text
+    assert "<h1>Title</h1>" in convert.convert(md, "text", "HTML")[0].read_text(encoding="utf-8")
+    txt = convert.convert(page, "text", "TXT")[0].read_text(encoding="utf-8")
+    assert "Hello" in txt and "World wide" in txt and "x=1" not in txt and "<" not in txt
+    from docx import Document
+    doc = Document(convert.convert(md, "text", "DOCX")[0])
+    paras = [(p.style.name, p.text) for p in doc.paragraphs]
+    assert ("Heading 1", "Title") in paras and ("List Bullet", "two") in paras
+    assert any(r.bold and r.text.strip() == "bold" for p in doc.paragraphs for r in p.runs)
+
+
+def test_file_ring_actions(tmp_path):
+    import hashlib
+    from shiftwheel import fileops
+    from shiftwheel.app import ShiftWheelApp
+    f = tmp_path / "Report.pdf"
+    f.write_bytes(b"%PDF-1.4 hello")
+    folder = tmp_path / "Project"
+    (folder / "sub").mkdir(parents=True)
+    (folder / "sub" / "a.txt").write_text("a")
+    assert fileops.duplicate(f).name == "Report Copy.pdf"
+    assert fileops.duplicate(f).name == "Report Copy (1).pdf" or fileops.duplicate(f).exists()
+    d = fileops.duplicate(folder)
+    assert d.name == "Project Copy" and (d / "sub" / "a.txt").read_text() == "a"
+    [(p, digest)] = fileops.sha256([f, folder])
+    assert p == f and digest == hashlib.sha256(b"%PDF-1.4 hello").hexdigest()
+    for paths in ([str(f)], [str(folder)], [str(f), str(folder)]):
+        rings = ShiftWheelApp.build_rings(None, paths)
+        assert list(rings)[-1] == "File"
+        assert [i.label for i in rings["File"]] == ["Copy path", "Show", "SHA-256", "Duplicate"]

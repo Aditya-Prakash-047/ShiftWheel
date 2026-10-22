@@ -246,7 +246,8 @@ class CropView(ImageView):
         hole = QPainterPath()
         hole.addRect(r)
         p.fillPath(shade.subtracted(hole), QColor(0, 0, 0, 140))
-        p.setPen(QPen(QColor(255, 255, 255, 230), 1.5))
+        accent = QColor("#ff6a4d")
+        p.setPen(QPen(accent, 2))
         p.drawRect(r)
         p.setPen(QPen(QColor(255, 255, 255, 70), 1))
         for i in (1, 2):  # rule of thirds
@@ -255,9 +256,14 @@ class CropView(ImageView):
             p.drawLine(QPointF(x, r.top()), QPointF(x, r.bottom()))
             p.drawLine(QPointF(r.left(), y), QPointF(r.right(), y))
         p.setPen(Qt.NoPen)
-        p.setBrush(QColor("#ff6a4d"))
+        p.setBrush(accent)
         for pt in (r.topLeft(), r.topRight(), r.bottomLeft(), r.bottomRight()):
             p.drawEllipse(pt, 5.5, 5.5)
+        # edge handles: drag a side to move just that side
+        for cx, cy, horiz in ((r.center().x(), r.top(), True), (r.center().x(), r.bottom(), True),
+                              (r.left(), r.center().y(), False), (r.right(), r.center().y(), False)):
+            w, h = (22, 6) if horiz else (6, 22)
+            p.drawRoundedRect(QRectF(cx - w / 2, cy - h / 2, w, h), 3, 3)
         # live output size badge
         txt = dims_text(round(self.sel.width() * self.k), round(self.sel.height() * self.k))
         f = QFont(ui_family(False))

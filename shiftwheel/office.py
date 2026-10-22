@@ -80,7 +80,9 @@ def _com(app_name: str):
 
 
 def office_export(src: Path, kind: str, target: str, out: Path) -> bool:
-    """kind: 'sheet' | 'slides' | 'worddoc'. Uses Microsoft Office via COM (Windows)."""
+    """kind: 'sheet' | 'slides' | 'worddoc'. Uses Microsoft Office via COM (Windows).
+    Arguments are positional: late-bound COM silently drops some keyword arguments
+    (SaveAs2's Encoding, for one)."""
     if not IS_WIN:
         return False
     src_s, out_s = str(src.resolve()), str(out.resolve())
@@ -90,11 +92,12 @@ def office_export(src: Path, kind: str, target: str, out: Path) -> bool:
             xl.Visible = False
             xl.DisplayAlerts = False
             try:
-                wb = xl.Workbooks.Open(src_s, ReadOnly=True)
+                wb = xl.Workbooks.Open(src_s, 0, True)              # UpdateLinks=0, ReadOnly
                 if target == "PDF":
+                    _fit_sheets_to_width(xl, wb)
                     wb.ExportAsFixedFormat(0, out_s)               # xlTypePDF
                 elif target == "XLSX":
-                    wb.SaveAs(out_s, FileFormat=51)                # xlOpenXMLWorkbook
+                    wb.SaveAs(out_s, 51)                           # xlOpenXMLWorkbook
                 else:
                     return False
                 wb.Close(False)
@@ -103,7 +106,7 @@ def office_export(src: Path, kind: str, target: str, out: Path) -> bool:
         elif kind == "slides":
             pp = _com("PowerPoint.Application")
             try:
-                pres = pp.Presentations.Open(src_s, ReadOnly=True, WithWindow=False)
+                pres = pp.Presentations.Open(src_s, True, False, False)  # ReadOnly, Untitled, WithWindow
                 if target != "PDF":
                     return False
                 pres.SaveAs(out_s, 32)                             # ppSaveAsPDF
@@ -114,9 +117,11 @@ def office_export(src: Path, kind: str, target: str, out: Path) -> bool:
             word = _com("Word.Application")
             word.Visible = False
             try:
-                doc = word.Documents.Open(src_s, ReadOnly=True)
-                fmt = {"PDF": 17, "DOCX": 16, "TXT": 7}[target]   # wdFormatPDF / DocumentDefault / UnicodeText
-                doc.SaveAs(out_s, FileFormat=fmt)
+                doc = word.Documents.Open(src_s, False, True)          # ConfirmConversions, ReadOnly
+                if target == "TXT":                                # wdFormatEncodedText as UTF-8, like every other .txt
+                    doc.SaveAs2(out_s, 7, False, "", False, "", False, False, False, False, False, 65001)
+                else:
+                    doc.SaveAs(out_s, {"PDF": 17, "DOCX": 16}[target])  # wdFormatPDF / DocumentDefault
                 doc.Close(False)
             finally:
                 word.Quit()
@@ -125,6 +130,30 @@ def office_export(src: Path, kind: str, target: str, out: Path) -> bool:
         return out.exists()
     except Exception:
         return False
+
+
+def _fit_sheets_to_width(xl, wb):
+    """Excel prints a wide sheet as a column strip per page. Make each sheet one page wide
+    (landscape when it has more than 7 columns), like the built-in renderer. The workbook is
+    open read-only, so the original's page setup is untouched."""
+    try:
+        xl.PrintCommunication = False                       # page setup is slow with it on
+    except Exception:
+        pass
+    for ws in wb.Worksheets:
+        try:
+            ps = ws.PageSetup
+            ps.Zoom = False
+            ps.FitToPagesWide = 1
+            ps.FitToPagesTall = False
+            if ws.UsedRange.Columns.Count > 7:
+                ps.Orientation = 2                          # xlLandscape
+        except Exception:
+            continue
+    try:
+        xl.PrintCommunication = True
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------- reading tables
@@ -316,17 +345,27 @@ def _json_safe(v):
 
 def convert_slides(src, target: str) -> list[Path]:
     src, t = Path(src), target.upper()
-    pdf = sibling(src, ext=".pdf")
-    ok = office_export(src, "slides", "PDF", pdf) or libreoffice_convert(src, "pdf", pdf)
-    if not ok:
-        raise UserError(f"Converting slides needs PowerPoint or LibreOffice. {LIBREOFFICE_HINT}")
     if t == "PDF":
-        return [pdf]
-    from .convert import pdf_to_images
-    try:
-        return pdf_to_images(pdf, t)
-    finally:
-        pdf.unlink(missing_ok=True)
+        pdf = sibling(src, ext=".pdf")
+        if office_export(src, "slides", "PDF", pdf) or libreoffice_convert(src, "pdf", pdf):
+            return [pdf]
+        raise UserError(f"Converting slides needs PowerPoint or LibreOffice. {LIBREOFFICE_HINT}")
+    # images: render a PDF in a temp folder, so an existing deck.pdf can't turn the
+    # pictures into 'deck (1) page 1.png'
+    from .convert import fitz, save_image
+    from PIL import Image
+    with tempfile.TemporaryDirectory() as td:
+        pdf = Path(td) / (src.stem + ".pdf")
+        if not (office_export(src, "slides", "PDF", pdf) or libreoffice_convert(src, "pdf", pdf)):
+            raise UserError(f"Converting slides needs PowerPoint or LibreOffice. {LIBREOFFICE_HINT}")
+        outs = []
+        with fitz.open(pdf) as doc:
+            for i, page in enumerate(doc):
+                pix = page.get_pixmap(dpi=150, alpha=False)
+                out = sibling(src, f"slide {i + 1}" if doc.page_count > 1 else "", "." + t.lower())
+                save_image(Image.frombytes("RGB", (pix.width, pix.height), pix.samples), out, t)
+                outs.append(out)
+    return outs
 
 
 def convert_worddoc(src, target: str) -> list[Path]:

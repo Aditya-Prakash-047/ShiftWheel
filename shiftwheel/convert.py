@@ -27,6 +27,8 @@ IMAGE_TARGETS = ["PNG", "JPG", "WEBP", "HEIC", "TIFF", "AVIF", "BMP", "PDF", "IC
 PDF_TARGETS = ["JPG", "PNG", "DOCX", "TXT"]
 DOCX_TARGETS = ["PDF", "TXT"]
 TEXT_TARGETS = ["PDF", "DOCX"]
+MARKDOWN_TARGETS = ["PDF", "DOCX", "HTML"]
+HTML_TARGETS = ["PDF", "DOCX", "TXT"]
 
 PIL_FORMAT = {"PNG": "PNG", "JPG": "JPEG", "WEBP": "WEBP", "HEIC": "HEIF", "TIFF": "TIFF",
               "AVIF": "AVIF", "BMP": "BMP", "PDF": "PDF", "ICO": "ICO", "GIF": "GIF"}
@@ -282,8 +284,10 @@ def _word_to_pdf(src: Path, out: Path) -> bool:
         word = win32com.client.DispatchEx("Word.Application")
         word.Visible = False
         try:
-            doc = word.Documents.Open(str(src.resolve()), ReadOnly=True)
-            doc.SaveAs(str(out.resolve()), FileFormat=17)  # wdFormatPDF
+            # positional: late-bound COM can silently drop keyword arguments, and without
+            # ReadOnly Word leaves a '~$name.docx' lock file next to the user's document
+            doc = word.Documents.Open(str(src.resolve()), False, True)   # ConfirmConversions, ReadOnly
+            doc.SaveAs(str(out.resolve()), 17)                           # wdFormatPDF
             doc.Close(False)
         finally:
             word.Quit()
@@ -303,10 +307,13 @@ td { border: 1px solid #888; padding: 3pt 5pt; font-size: 10pt; }
 """
 
 
-def html_to_pdf(body_html: str, out: Path) -> None:
-    story = fitz.Story(html=body_html, user_css=CSS)
+def html_to_pdf(body_html: str, out: Path, base_dir: Path | None = None) -> None:
+    """base_dir: where relative <img src> paths are looked up (an HTML or Markdown file's folder)."""
+    from .util import default_paper
+    archive = fitz.Archive(str(base_dir)) if base_dir else None
+    story = fitz.Story(html=body_html, user_css=CSS, archive=archive)
     writer = fitz.DocumentWriter(str(out))
-    mediabox = fitz.paper_rect("letter")
+    mediabox = fitz.paper_rect(default_paper())
     where = mediabox + (54, 54, -54, -54)
     more = True
     while more:
@@ -336,20 +343,118 @@ def read_text(src: str | Path) -> str:
     return raw.decode("utf-8", "replace")
 
 
+MARKUP_EXTS = {".md", ".markdown", ".html", ".htm"}
+
+
+def markdown_to_html(text: str) -> str:
+    import markdown
+    return markdown.markdown(text, extensions=["extra", "sane_lists"])
+
+
+def as_html(src: str | Path) -> str:
+    """The document a text file stands for: HTML as itself, Markdown rendered, anything else as-is."""
+    ext, text = Path(src).suffix.lower(), read_text(src)
+    if ext in (".html", ".htm"):
+        return text
+    if ext in (".md", ".markdown"):
+        return markdown_to_html(text)
+    return f"<pre>{html.escape(text)}</pre>"
+
+
 def text_to_pdf(src: str | Path) -> list[Path]:
     out = sibling(src, ext=".pdf")
-    html_to_pdf(f"<pre>{html.escape(read_text(src))}</pre>", out)
+    html_to_pdf(as_html(src), out, Path(src).parent)
+    return [out]
+
+
+def text_to_html(src: str | Path) -> list[Path]:
+    out = sibling(src, ext=".html")
+    title = html.escape(Path(src).stem)
+    out.write_text(f"<!doctype html><meta charset='utf-8'><title>{title}</title><style>{CSS}</style>"
+                   f"{as_html(src)}", encoding="utf-8")
+    return [out]
+
+
+def html_to_text(src: str | Path) -> list[Path]:
+    """Readable text of a web page (no tags, scripts or styles)."""
+    with fitz.open(stream=as_html(src).encode("utf-8"), filetype="html") as doc:
+        text = "\n".join(page.get_text("text") for page in doc)
+    out = sibling(src, ext=".txt")
+    out.write_text(text.strip() + "\n", encoding="utf-8")
     return [out]
 
 
 def text_to_docx(src: str | Path) -> list[Path]:
     from docx import Document
     d = Document()
-    for line in read_text(src).splitlines():
-        d.add_paragraph(line)
+    if Path(src).suffix.lower() in MARKUP_EXTS:
+        _html_into_docx(as_html(src), d)
+    else:
+        for line in read_text(src).splitlines():
+            d.add_paragraph(line)
     out = sibling(src, ext=".docx")
     d.save(out)
     return [out]
+
+
+def _html_into_docx(markup: str, d) -> None:
+    """Headings, paragraphs, list items and preformatted blocks, with bold/italic runs."""
+    from html.parser import HTMLParser
+
+    class Parser(HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.par, self.bold, self.ital, self.skip, self.pre = None, 0, 0, 0, False
+
+        def handle_starttag(self, tag, attrs):
+            if tag in ("script", "style", "head", "title"):
+                self.skip += 1
+            elif tag in ("h1", "h2", "h3", "h4", "h5", "h6"):
+                self.par = d.add_heading(level=min(int(tag[1]), 4))
+            elif tag == "li":
+                self.par = d.add_paragraph(style="List Bullet")
+            elif tag in ("p", "div", "blockquote", "tr", "pre"):
+                self.par = d.add_paragraph()
+                self.pre = self.pre or tag == "pre"
+            elif tag == "br" and self.par is not None:
+                self.par.add_run().add_break()
+            elif tag in ("b", "strong"):
+                self.bold += 1
+            elif tag in ("i", "em"):
+                self.ital += 1
+
+        def handle_endtag(self, tag):
+            if tag in ("script", "style", "head", "title"):
+                self.skip = max(0, self.skip - 1)
+            elif tag in ("b", "strong"):
+                self.bold = max(0, self.bold - 1)
+            elif tag in ("i", "em"):
+                self.ital = max(0, self.ital - 1)
+            elif tag == "pre":
+                self.pre = False
+                self.par = None
+            elif tag in ("p", "li", "div", "blockquote", "tr", "h1", "h2", "h3", "h4", "h5", "h6"):
+                self.par = None
+
+        def handle_data(self, data):
+            if self.skip or (not self.pre and not data.strip()):
+                return
+            if self.par is None:
+                self.par = d.add_paragraph()
+            if self.pre:
+                text = data.strip("\n")
+            else:
+                text = " ".join(data.split())
+                if data[:1].isspace() and self.par.text:
+                    text = " " + text
+                if data[-1:].isspace():
+                    text += " "
+            run = self.par.add_run(text)
+            run.bold, run.italic = bool(self.bold) or None, bool(self.ital) or None
+            if self.pre:
+                run.font.name = "Consolas"
+
+    Parser().feed(markup)
 
 
 # ---------------------------------------------------------------- dispatch
@@ -362,6 +467,10 @@ def targets_for(cat: str, src_ext: str) -> list[str]:
         if not HEIF_OK:
             t = [x for x in t if x != "HEIC"]
         return t
+    if cat == "text" and src_ext in ("md", "markdown"):
+        return MARKDOWN_TARGETS
+    if cat == "text" and src_ext in ("html", "htm"):
+        return HTML_TARGETS
     return {"pdf": PDF_TARGETS, "docx": DOCX_TARGETS, "text": TEXT_TARGETS}.get(cat, [])
 
 
@@ -379,5 +488,5 @@ def convert(src: str | Path, cat: str, target: str) -> list[Path]:
     if cat == "docx":
         return docx_to_pdf(src) if target == "PDF" else docx_to_txt(src)
     if cat == "text":
-        return text_to_pdf(src) if target == "PDF" else text_to_docx(src)
+        return {"PDF": text_to_pdf, "DOCX": text_to_docx, "HTML": text_to_html, "TXT": html_to_text}[target](src)
     raise ValueError(f"Can't convert {cat} to {target}")

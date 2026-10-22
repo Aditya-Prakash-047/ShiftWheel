@@ -42,7 +42,8 @@ def test_sheet_to_json_html_pdf(csv_file):
 
 
 def test_multi_sheet_xlsx_to_csv_and_pdf(tmp_path, monkeypatch):
-    monkeypatch.setattr(O, "find_soffice", lambda: None)      # the built-in renderer
+    monkeypatch.setattr(O, "find_soffice", lambda: None)
+    monkeypatch.setattr(O, "office_export", lambda *a: False)      # the built-in renderer
     from openpyxl import Workbook
     wb = Workbook()
     wb.active.title = "Jan"
@@ -86,6 +87,7 @@ def test_libreoffice_engine_xlsx_and_pptx(tmp_path):
 
 def test_slides_without_office_gives_clear_message(tmp_path, monkeypatch):
     monkeypatch.setattr(O, "find_soffice", lambda: None)
+    monkeypatch.setattr(O, "office_export", lambda *a: False)
     from pptx import Presentation
     p = tmp_path / "deck.pptx"
     Presentation().save(p)
@@ -95,11 +97,57 @@ def test_slides_without_office_gives_clear_message(tmp_path, monkeypatch):
 
 def test_rtf_to_txt_without_office(tmp_path, monkeypatch):
     monkeypatch.setattr(O, "find_soffice", lambda: None)
+    monkeypatch.setattr(O, "office_export", lambda *a: False)
     p = tmp_path / "note.rtf"
     p.write_text(r"{\rtf1\ansi{\fonttbl\f0 Arial;}\f0 Hello \b world\b0\par Caf\'e9 time}", encoding="latin-1")
     out = O.convert_worddoc(p, "TXT")[0]
     assert out.read_text(encoding="utf-8") == "Hello world\nCafé time"
     assert O.rtf_to_text(r"{\rtf1{\*\generator Word;}{\colortbl;\red0;}A\tab B\uc1\u8364?5\line C}") == "A\tB€5\nC"
+
+
+def _has_office(app: str) -> bool:
+    try:
+        import winreg
+        winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, app).Close()
+        return True
+    except Exception:
+        return False
+
+
+@pytest.mark.skipif(not _has_office("Excel.Application"), reason="Microsoft Excel not installed")
+def test_excel_pdf_is_one_page_wide(tmp_path, monkeypatch):
+    monkeypatch.setattr(O, "find_soffice", lambda: None)
+    from openpyxl import Workbook
+    wb = Workbook()
+    wb.active.append([f"Column {i}" for i in range(14)])
+    p = tmp_path / "wide.xlsx"
+    wb.save(p)
+    with fitz.open(O.convert_sheet(p, "PDF")[0]) as d:
+        assert d[0].rect.width > d[0].rect.height and "Column 13" in d[0].get_text()
+
+
+@pytest.mark.skipif(not _has_office("Word.Application"), reason="Microsoft Word not installed")
+def test_word_txt_is_utf8(tmp_path, monkeypatch):
+    monkeypatch.setattr(O, "find_soffice", lambda: None)
+    p = tmp_path / "note.rtf"
+    p.write_text(r"{\rtf1\ansi{\fonttbl\f0 Arial;}\f0 Hello\par Caf\'e9 time}", encoding="latin-1")
+    out = O.convert_worddoc(p, "TXT")[0]
+    assert out.read_text(encoding="utf-8-sig").split() == ["Hello", "Café", "time"]
+
+
+@pytest.mark.skipif(not _has_office("PowerPoint.Application"), reason="Microsoft PowerPoint not installed")
+def test_powerpoint_slides_to_png_names(tmp_path, monkeypatch):
+    monkeypatch.setattr(O, "find_soffice", lambda: None)
+    from pptx import Presentation
+    prs = Presentation()
+    for title in ("One", "Two"):
+        prs.slides.add_slide(prs.slide_layouts[0]).shapes.title.text = title
+    deck = tmp_path / "deck.pptx"
+    prs.save(deck)
+    (tmp_path / "deck.pdf").write_bytes(b"%PDF-1.4 already here")
+    assert [o.name for o in O.convert_slides(deck, "PNG")] == ["deck slide 1.png", "deck slide 2.png"]
+    assert sorted(f.name for f in tmp_path.iterdir()) == ["deck slide 1.png", "deck slide 2.png", "deck.pdf",
+                                                          "deck.pptx"]
 
 
 # ---------------------------------------------------------------- archives
@@ -184,6 +232,20 @@ def test_searchable_pdf(tmp_path):
     with fitz.open(out) as d:
         assert "Quarterly report" in d[0].get_text()
         assert d[0].search_for("ShiftWheel")              # searchable, and positioned on the word
+
+
+def test_ocr_join_keeps_letters_of_overlapping_boxes():
+    # padded word boxes overlap a little: that must not cut letters ('Selftes 202')
+    assert ocr._join_line([(30, 330, "Selftest"), (310, 470, "2026"), (455, 560, "OK")]) == "Selftest 2026 OK"
+    # a box that really ran into the next word repeats its start: drop the repeat
+    assert ocr._join_line([(30, 380, "Selftest 2"), (340, 470, "2026")]) == "Selftest 2026"
+
+
+@pytest.mark.skipif(not ocr.available(), reason="OCR not installed")
+def test_ocr_reads_every_letter(tmp_path):
+    lines = ["Selftest 2026 OK", "Name: Aditya Prakash", "DOB: 12/04/2003"]
+    p = _text_image(tmp_path / "card.png", lines)
+    assert ocr.image_text(p).splitlines() == lines
 
 
 def test_ocr_no_text(tmp_path):

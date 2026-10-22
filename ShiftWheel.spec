@@ -6,7 +6,8 @@ onefile = os.environ.get("ONEFILE") == "1"
 # packages that carry data files / native libraries PyInstaller won't find on its own
 datas, bins, hidden = [], [], []
 for pkg in ("pillow_heif", "imageio_ffmpeg", "rapidocr", "onnxruntime", "omegaconf", "pyclipper", "shapely",
-            "py7zr", "pyppmd", "pybcj", "inflate64", "multivolumefile", "brotli", "Cryptodome", "openpyxl"):
+            "py7zr", "pyppmd", "pybcj", "inflate64", "multivolumefile", "brotli", "Cryptodome", "openpyxl",
+            "markdown"):
     try:
         d, b, h = collect_all(pkg)
     except Exception:

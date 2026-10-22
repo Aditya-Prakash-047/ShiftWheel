@@ -567,9 +567,15 @@ class ScanWindow(PrintableWindow):
 
         def work(progress=None):
             from . import ocr
-            P.save_pdf(pages, out, color)
-            if ocr_on:
-                ocr.make_searchable(out, out, progress=progress)
+            if not ocr_on:
+                return [P.save_pdf(pages, out, color)]
+            # the PDF only appears once it has its text layer: never a half-done file
+            tmp = out.with_name(f".~{out.stem} scan.pdf")
+            try:
+                P.save_pdf(pages, tmp, color)
+                ocr.make_searchable(tmp, out, progress=progress)
+            finally:
+                tmp.unlink(missing_ok=True)
             return [out]
         self.run(work, self.working_text, self.save_extra())
 

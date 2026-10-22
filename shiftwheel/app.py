@@ -14,8 +14,8 @@ from PySide6.QtGui import (QAction, QColor, QCursor, QDesktopServices, QGuiAppli
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QFileDialog, QMenu, QSystemTrayIcon, QWidget
 
-from . import (__version__, archive, convert, glass, imaging, media, mediawin, ocr, ocrwin, office, printwin,
-               report, tools)
+from . import (__version__, archive, convert, fileops, glass, imaging, media, mediawin, ocr, ocrwin, office,
+               printwin, report, tools)
 from .radial import Item, RadialMenu
 from .settings import Settings, SettingsWindow, WelcomeWindow, TRIGGERS
 from .toasts import ToastStack
@@ -36,7 +36,8 @@ GLYPHS = {"Compress": "⇲", "Metadata": "ⓘ", "Redact": "▮", "Crop": "⌗", 
           "Merge": "⧉", "Protect": "⚿", "Extract": "⧈",
           "ID Card": "▤", "Passport": "☺", "Scan": "⬚", "Print": "⎙",
           "Text": "¶", "OCR": "¶", "Zip": "▦", "7Z": "▦",
-          "Trim": "✂", "GIF": "◎", "Snapshot": "◫", "Mute": "⊘", "Speed": "»", "Normalize": "≋"}
+          "Trim": "✂", "GIF": "◎", "Snapshot": "◫", "Mute": "⊘", "Speed": "»", "Normalize": "≋",
+          "Copy path": "⎘", "Show": "⌕", "SHA-256": "#", "Duplicate": "❐"}
 
 HINTS = {
     "Compress": "Shrink file size", "Metadata": "View · remove GPS", "Redact": "Hide private info",
@@ -50,7 +51,10 @@ HINTS = {
     "Text": "Copy text from photo", "OCR": "Make it searchable", "Zip": "Compress into .zip",
     "7Z": "Smaller .7z archive",
     "Mute": "Remove the sound", "Speed": "0.25× – 4×", "Normalize": "Even out loudness",
+    "Copy path": "To the clipboard", "Show": "Open its folder", "SHA-256": "Checksum → clipboard",
+    "Duplicate": "Make a copy",
 }
+FILE_ACTIONS = ["Copy path", "Show", "SHA-256", "Duplicate"]
 FORMAT_HINTS = {"JPG": "Small, universal", "PNG": "Lossless · transparency", "WEBP": "Smallest for web",
                 "HEIC": "iPhone format", "TIFF": "Print · archival", "AVIF": "Next-gen, tiny",
                 "BMP": "Uncompressed", "PDF": "Document", "ICO": "Windows icon", "GIF": "Legacy web",
@@ -166,6 +170,7 @@ class ShiftWheelApp(QObject):
         self.windows: list[QWidget] = []
         self.toasts = ToastStack()
         self.menu = RadialMenu(self.build_rings, self.describe)
+        self.menu.style = self.settings.get("wheel_style")
         self.menu.activated.connect(self.run_item)
 
         # the watcher only manages menus it opened (drag mode); click-mode menus (tray, right-click,
@@ -263,6 +268,12 @@ class ShiftWheelApp(QObject):
         return human_size(file_size(paths[0]))
 
     def build_rings(self, paths: list[str]) -> dict[str, list[Item]]:
+        """Convert → Tools → Print (what fits the file), then the File ring for anything."""
+        rings = ShiftWheelApp._file_rings(self, paths)
+        rings["File"] = [Item(n, GLYPHS[n], key=f"file:{n}", hint=HINTS[n]) for n in FILE_ACTIONS]
+        return rings
+
+    def _file_rings(self, paths: list[str]) -> dict[str, list[Item]]:
         cat = category(paths[0])
         if cat is None or len({category(p) for p in paths}) > 1:
             # folders, unknown files, or a mixed selection: pack them
@@ -323,6 +334,9 @@ class ShiftWheelApp(QObject):
         cat = category(paths[0])
         paths = [p for p in paths if category(p) == cat]
         kind, name = item.key.split(":", 1)
+        if kind == "file":
+            self.run_file_action(name, self._all_paths)
+            return
         if kind == "pack":
             allp = self._all_paths
             self.submit("tool:Zip", allp, lambda: [archive.zip_paths(allp, name)], "Compressing…")
@@ -436,6 +450,28 @@ class ShiftWheelApp(QObject):
         elif name == "Speed":
             self._open_tool(name, lambda ps, n: mediawin.SpeedWindow(ps[0], n), paths)
 
+    def run_file_action(self, name: str, paths: list[str]):
+        if name == "Copy path":
+            text = "\n".join(str(Path(p)) for p in paths)
+            QGuiApplication.clipboard().setText(text)
+            self.toasts.info("Path copied", text if len(paths) == 1 else f"{len(paths)} paths, one per line")
+        elif name == "Show":
+            fileops.reveal(paths[0])
+        elif name == "Duplicate":
+            self.submit("tool:Duplicate", paths, lambda: [fileops.duplicate(p) for p in paths], "Duplicating…")
+        elif name == "SHA-256":
+            sums = {}
+
+            def work(progress=None):
+                sums["r"] = fileops.sha256(paths, progress)
+                return []
+
+            def copied(text):
+                QGuiApplication.clipboard().setText(text)
+                self.toasts.info("SHA-256 copied", text if len(sums["r"]) == 1 else f"{len(sums['r'])} files")
+            self.submit("tool:SHA-256", paths, work, "Hashing…",
+                        on_done=lambda _r: copied(fileops.checksum_text(sums["r"])))
+
     def open_window(self, w: QWidget):
         if hasattr(w, "submit"):
             w.submit = self.submit
@@ -446,8 +482,9 @@ class ShiftWheelApp(QObject):
         else:
             w.show()
 
-    def submit(self, action: str, srcs: list, fn, working: str = "Working…", extra: str = ""):
-        """Run in the background. A spinner card appears only if it takes > 150 ms."""
+    def submit(self, action: str, srcs: list, fn, working: str = "Working…", extra: str = "", on_done=None):
+        """Run in the background. A spinner card appears only if it takes > 150 ms.
+        on_done(result) replaces the usual 'done' card (for results that aren't files)."""
         state = {"card": None, "finished": False}
         names = Path(srcs[0]).name if len(srcs) == 1 else f"{len(srcs)} files"
 
@@ -462,6 +499,11 @@ class ShiftWheelApp(QObject):
         def done(r):
             release(job)
             state["finished"] = True
+            if on_done is not None:
+                if state["card"] is not None:
+                    state["card"].dismiss()
+                on_done(r)
+                return
             card = state["card"] or self.toasts.new()
             card.done(r)
 
@@ -511,6 +553,7 @@ class ShiftWheelApp(QObject):
 
     def _settings_changed(self):
         self.watcher.set_key(self.settings.get("trigger"))
+        self.menu.style = self.settings.get("wheel_style")
         self.tray.setToolTip(f"{APP_NAME} — press {self.trigger_label()} while dragging a file")
 
     def show_welcome(self):
@@ -719,17 +762,12 @@ def selftest_extras(d: Path, png: Path, pdf: Path) -> None:
 
     # OCR (models bundled)
     if ocr.available():
-        from PySide6.QtGui import QImage, QPainter, QColor
-        from .util import ui_font
-        qi = QImage(900, 140, QImage.Format_RGB32)
-        qi.fill(QColor("white"))
-        p = QPainter(qi)
-        p.setFont(ui_font(44))
-        p.setPen(QColor("black"))
-        p.drawText(30, 90, "Selftest 2026 OK")
-        p.end()
+        # drawn with Pillow's bundled font: Qt's offscreen platform (CI) has no real fonts
+        from PIL import ImageFont
+        im = Image.new("RGB", (900, 140), "white")
+        ImageDraw.Draw(im).text((30, 40), "Selftest 2026 OK", fill="black", font=ImageFont.load_default(56))
         tp = d / "text.png"
-        qi.save(str(tp))
+        im.save(tp)
         txt = ocr.image_text(tp)
         assert "2026" in txt, f"OCR read {txt!r}"
         print(f"OCR OK: {txt!r}")

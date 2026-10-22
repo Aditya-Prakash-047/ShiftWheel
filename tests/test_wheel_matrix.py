@@ -39,11 +39,13 @@ class FakeApp(A.ShiftWheelApp):
         self.toasts = FakeToasts()
         self.windows, self.results, self.failures = [], [], []
 
-    def submit(self, action, srcs, fn, working="", extra=""):
+    def submit(self, action, srcs, fn, working="", extra="", on_done=None):
         from shiftwheel.util import call_with_progress
         try:
             outs = call_with_progress(fn, lambda f: None) or []
             self.results.append((action, [Path(o) for o in outs]))
+            if on_done:
+                on_done(None)
         except UserError as e:
             self.failures.append((action, str(e)))
 
@@ -98,6 +100,7 @@ def test_every_slice(tmp_path, media_dir, card_photos, doc_photo, monkeypatch):
     if office.find_soffice() is None:
         pytest.skip("needs LibreOffice for docx/slides fidelity path")
     fs = files(tmp_path, media_dir, card_photos, doc_photo)
+    monkeypatch.setattr(A.fileops, "reveal", lambda p: None)
     app = FakeApp()
     tried = 0
     for kind, paths in fs.items():
@@ -114,8 +117,8 @@ def test_every_slice(tmp_path, media_dir, card_photos, doc_photo, monkeypatch):
                 assert after[2] == before[2], f"{label}: failed {app.failures[-1:]}"
                 if after[0] > before[0]:
                     continue                                # a tool window opened
-                if (kind == "video" and it.label == "Compress"):
-                    continue
+                if (kind == "video" and it.label == "Compress") or ring == "File":
+                    continue                                # File ring: clipboard / folder / checksum
                 assert after[1] > before[1], f"{label}: did nothing"
                 action, outs = app.results[-1]
                 assert outs and all(o.exists() for o in outs), f"{label}: no output"

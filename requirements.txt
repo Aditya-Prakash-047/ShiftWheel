@@ -4,6 +4,7 @@ pillow-heif>=0.18
 PyMuPDF>=1.24
 numpy>=1.26
 python-docx>=1.1
+markdown>=3.5                    # .md → PDF / Word / web page
 opencv-python-headless>=4.9      # ID card / document edge detection
 imageio-ffmpeg>=0.5              # bundled FFmpeg: video & audio
 openpyxl>=3.1                    # Excel / CSV
