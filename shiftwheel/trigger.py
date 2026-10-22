@@ -17,6 +17,30 @@ NO_DRAG_TIMEOUT = 50  # ticks (≈ 0.75 s) to wait for a file drag to enter befo
 TAP_GRACE = 30        # ticks (≈ 0.45 s) a ring-switch tap waits for the drag to reach the menu
 
 
+def foreground_exe() -> str:
+    """Program name of the active window ('photoshop.exe'), lower-case; '' if unknown."""
+    if sys.platform != "win32":
+        return ""
+    try:
+        from ctypes import wintypes
+        user32, kernel32 = ctypes.windll.user32, ctypes.windll.kernel32
+        pid = wintypes.DWORD()
+        user32.GetWindowThreadProcessId(user32.GetForegroundWindow(), ctypes.byref(pid))
+        h = kernel32.OpenProcess(0x1000, False, pid.value)      # PROCESS_QUERY_LIMITED_INFORMATION
+        if not h:
+            return ""
+        try:
+            buf = ctypes.create_unicode_buffer(520)
+            size = wintypes.DWORD(len(buf))
+            if not kernel32.QueryFullProcessImageNameW(h, 0, buf, ctypes.byref(size)):
+                return ""
+            return buf.value.replace("/", "\\").rsplit("\\", 1)[-1].lower()
+        finally:
+            kernel32.CloseHandle(h)
+    except Exception:
+        return ""
+
+
 class ShiftWheelWatcher(QObject):
     show_menu = Signal(QPoint)
     toggle_ring = Signal()
@@ -27,6 +51,7 @@ class ShiftWheelWatcher(QObject):
         self.menu_visible = menu_visible
         self.menu_got_drag = menu_got_drag
         self.enabled = True
+        self.excluded: set[str] = set()     # program names where the wheel never opens
         self.vk = VK_SHIFT
         self.key_name = "shift"
         self._down_at: QPoint | None = None
@@ -102,10 +127,12 @@ class ShiftWheelWatcher(QObject):
                 moved = (pos - self._down_at).manhattanLength() >= DRAG_THRESHOLD
                 if self.enabled and moved and shift and not self._fired:
                     self._fired = True
-                    self._idle_ticks = 0
-                    self._pending_tap = 0
-                    self._shown_at = pos
-                    self.show_menu.emit(pos)
+                    # in excluded apps Shift+drag belongs to the app (Settings → Behaviour)
+                    if not (self.excluded and foreground_exe() in self.excluded):
+                        self._idle_ticks = 0
+                        self._pending_tap = 0
+                        self._shown_at = pos
+                        self.show_menu.emit(pos)
             else:
                 self._down_at = None
                 self._fired = False

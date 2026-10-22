@@ -15,7 +15,7 @@ from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QFileDialog, QMenu, QSystemTrayIcon, QWidget
 
 from . import (__version__, archive, convert, fileops, glass, imaging, media, mediawin, ocr, ocrwin, office,
-               printwin, report, tools)
+               printwin, report, saveas, themes, tools)
 from .radial import Item, RadialMenu
 from .settings import Settings, SettingsWindow, WelcomeWindow, TRIGGERS
 from .toasts import ToastStack
@@ -170,7 +170,6 @@ class ShiftWheelApp(QObject):
         self.windows: list[QWidget] = []
         self.toasts = ToastStack()
         self.menu = RadialMenu(self.build_rings, self.describe)
-        self.menu.style = self.settings.get("wheel_style")
         self.menu.activated.connect(self.run_item)
 
         # the watcher only manages menus it opened (drag mode); click-mode menus (tray, right-click,
@@ -178,7 +177,8 @@ class ShiftWheelApp(QObject):
         self.watcher = ShiftWheelWatcher(lambda: self.menu.isVisible() and not self.menu.click_mode,
                                         lambda: self.menu.got_drag, self)
         self.watcher.set_key(self.settings.get("trigger"))
-        self.watcher.show_menu.connect(lambda pos: self.menu.popup(pos))
+        self.watcher.excluded = self.settings.excluded_apps()
+        self.watcher.show_menu.connect(self._drag_popup)
         self.watcher.toggle_ring.connect(self.menu.next_ring)
         self.watcher.hide_menu.connect(self.menu.close_menu)
         self.watcher.start()
@@ -206,9 +206,24 @@ class ShiftWheelApp(QObject):
         m.addSeparator()
         m.addAction(f"Quit {APP_NAME}", self.qapp.quit)
         self.tray_menu = m
+        self.apply_look()
+        # "Match Windows": follow light/dark live
+        self.qapp.styleHints().colorSchemeChanged.connect(lambda *_: self.apply_look())
         self.tray.setContextMenu(m)
         self.tray.activated.connect(self._tray_click)
         self.tray.show()
+
+    def apply_look(self):
+        """Theme, light/dark, accent and size → the wheel, windows and notifications."""
+        s = self.settings
+        self.menu.set_look(s.palette(), s.get("wheel_size") / 100)
+        accent = None if s.get("accent") == "theme" else themes.accent_color(s.get("theme"), s.get("accent"))
+        glass.set_mode(themes.is_dark(s.get("appearance")), accent)
+        self.tray_menu.setStyleSheet(glass.QSS)
+
+    def _drag_popup(self, pos):
+        self.apply_look()        # picks up a Windows accent/mode change since last time
+        self.menu.popup(pos)
 
     def trigger_label(self) -> str:
         return dict(TRIGGERS).get(self.settings.get("trigger"), "Shift")
@@ -504,8 +519,7 @@ class ShiftWheelApp(QObject):
                     state["card"].dismiss()
                 on_done(r)
                 return
-            card = state["card"] or self.toasts.new()
-            card.done(r)
+            self.deliver(r, action, srcs, extra, state["card"])
 
         def failed(msg):
             release(job)
@@ -527,7 +541,31 @@ class ShiftWheelApp(QObject):
 
     def notify(self, action: str, srcs: list, outs: list, extra: str = ""):
         """Called by tool windows after they save."""
-        self.toasts.new().done(report.summarize(action, srcs, outs, extra))
+        self.deliver(report.summarize(action, srcs, outs, extra), action, srcs, extra, None)
+
+    def deliver(self, r, action: str, srcs: list, extra: str, card):
+        """A job finished: offer to name it (Settings → Saving), then open / reveal / notify."""
+        outs = [Path(o) for o in r.outs]
+        if self.settings.get("ask_name") and len(outs) == 1 and outs[0].is_file():
+            def named(new: Path):
+                r2 = r if new == outs[0] else report.summarize(action, srcs, [new], extra)
+                self._finish(r2, card)
+            self.open_window(saveas.SaveAsWindow(outs[0], named))
+            return
+        self._finish(r, card)
+
+    def _finish(self, r, card):
+        after = self.settings.get("after_save")
+        if r.outs and Path(r.outs[0]).exists():
+            if after == "open":
+                QDesktopServices.openUrl(QUrl.fromLocalFile(str(r.outs[0])))
+            elif after == "reveal":
+                fileops.reveal(r.outs[0])
+        if self.settings.get("notifications") == "errors":
+            if card is not None:
+                card.dismiss()
+            return
+        (card or self.toasts.new()).done(r)
 
     # ------------------------------------------------------------ misc
     def _tray_click(self, reason):
@@ -553,7 +591,8 @@ class ShiftWheelApp(QObject):
 
     def _settings_changed(self):
         self.watcher.set_key(self.settings.get("trigger"))
-        self.menu.style = self.settings.get("wheel_style")
+        self.watcher.excluded = self.settings.excluded_apps()
+        self.apply_look()
         self.tray.setToolTip(f"{APP_NAME} — press {self.trigger_label()} while dragging a file")
 
     def show_welcome(self):
