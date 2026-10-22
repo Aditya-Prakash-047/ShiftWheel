@@ -86,17 +86,22 @@ def to_lines(items) -> str:
 
 def _join_line(items) -> str:
     """Join word boxes left→right. The detector sometimes lets a box run into the next one
-    ('Selftest 2' + '2026'); drop the characters that sit inside the following box."""
+    ('Selftest 2' + '2026'); drop characters that sit inside the following box *and* repeat
+    its start. Boxes are padded, so neighbours nearly always overlap a little: an overlap
+    alone is no reason to cut letters."""
     out = []
     for k, (x0, x1, text) in enumerate(items):
         if k + 1 < len(items):
-            nx0 = items[k + 1][0]
+            nx0, nxt = items[k + 1][0], items[k + 1][2].strip()
             overlap = x1 - nx0
             if overlap > 0 and len(text) > 1:
                 char_w = (x1 - x0) / len(text)
                 drop = int(round(overlap / max(char_w, 1.0)))
-                if 0 < drop < len(text):
-                    text = text[:-drop]
+                for d in range(min(drop + 1, len(text) - 1), 0, -1):
+                    tail = text[-d:].strip()
+                    if tail and nxt.startswith(tail):
+                        text = text[:-d]
+                        break
         text = text.strip()
         if text:
             out.append(text)

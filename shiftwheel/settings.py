@@ -22,6 +22,7 @@ DEFAULTS = {
     "jpg_quality": 90,
     "pdf_dpi": 200,
     "trigger": "shift",
+    "wheel_style": "santra",
     "welcomed": False,
 }
 
@@ -98,17 +99,62 @@ def set_autostart(on: bool):
                 pass
 
 
+# ---------------------------------------------------------------- right-click menu (Windows)
+# Same per-user keys the installer writes, so the portable .exe can add (and remove) it too.
+MENU_KEYS = (r"Software\Classes\*\shell\ShiftWheel", r"Software\Classes\Directory\shell\ShiftWheel")
+
+
+def open_command() -> str:
+    if getattr(sys, "frozen", False):
+        return f'"{sys.executable}" "%1"'
+    pyw = sys.executable.replace("python.exe", "pythonw.exe")
+    return f'"{pyw}" -m shiftwheel "%1"'
+
+
+def context_menu_enabled() -> bool:
+    if not IS_WIN:
+        return False
+    import winreg
+    try:
+        winreg.OpenKey(winreg.HKEY_CURRENT_USER, MENU_KEYS[0] + r"\command").Close()
+        return True
+    except OSError:
+        return False
+
+
+def set_context_menu(on: bool):
+    if not IS_WIN:
+        return
+    import winreg
+    exe = sys.executable
+    for key in MENU_KEYS:
+        if on:
+            with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key) as k:
+                winreg.SetValueEx(k, "MUIVerb", 0, winreg.REG_SZ, "ShiftWheel…")
+                winreg.SetValueEx(k, "Icon", 0, winreg.REG_SZ, exe)
+                winreg.SetValueEx(k, "MultiSelectModel", 0, winreg.REG_SZ, "Player")
+            with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key + r"\command") as k:
+                winreg.SetValueEx(k, "", 0, winreg.REG_SZ, open_command())
+        else:
+            for sub in (key + r"\command", key):
+                try:
+                    winreg.DeleteKey(winreg.HKEY_CURRENT_USER, sub)
+                except OSError:
+                    pass
+
+
 TRIGGERS = ([("shift", "Shift ⇧"), ("ctrl", "Control ⌃"), ("alt", "Option ⌥")] if IS_MAC
             else [("shift", "Shift"), ("ctrl", "Ctrl"), ("alt", "Alt")])
 OUTPUTS = [("next", "Next to the original"), ("folder", "In a “ShiftWheel” subfolder")]
 DPIS = [(150, "150 dpi · small"), (200, "200 dpi · balanced"), (300, "300 dpi · print")]
+WHEEL_STYLES = [("santra", "Santra · warm peach"), ("glass", "Liquid glass · see-through")]
 
 
 class SettingsWindow(GlassWindow):
     changed = Signal()
 
     def __init__(self, settings: Settings):
-        super().__init__("Settings", size=(520, 470))
+        super().__init__("Settings", size=(540, 560))
         self.s = settings
         grid = QGridLayout()
         grid.setHorizontalSpacing(14)
@@ -131,6 +177,12 @@ class SettingsWindow(GlassWindow):
         hint = QLabel("…pressed while you’re dragging a file")
         hint.setObjectName("dim")
         grid.addWidget(hint, r, 1)
+        r += 1
+
+        grid.addWidget(QLabel("Wheel look"), r, 0)
+        self.style = combo(WHEEL_STYLES, self.s.get("wheel_style"))
+        self.style.currentIndexChanged.connect(lambda _: self._save("wheel_style", self.style.currentData()))
+        grid.addWidget(self.style, r, 1)
         r += 1
 
         grid.addWidget(QLabel("Save results"), r, 0)
@@ -164,6 +216,13 @@ class SettingsWindow(GlassWindow):
             self.auto.setChecked(autostart_enabled())
             self.auto.toggled.connect(set_autostart)
             grid.addWidget(self.auto, r, 1)
+            r += 1
+        if IS_WIN:
+            self.ctx = QCheckBox("Show “ShiftWheel…” when you right-click a file")
+            self.ctx.setToolTip("Windows 11: under “Show more options”. No admin rights needed.")
+            self.ctx.setChecked(context_menu_enabled())
+            self.ctx.toggled.connect(set_context_menu)
+            grid.addWidget(self.ctx, r, 1)
             r += 1
         if IS_MAC:
             from . import platform_mac

@@ -25,7 +25,10 @@ except Exception:
 pyautogui.FAILSAFE = False
 pyautogui.PAUSE = 0.03
 
-R_PETAL = 109  # (R_IN + R_OUT) / 2 in radial.py
+# pyautogui works in physical pixels; the menu is sized in Qt's logical pixels
+SCALE = (user32.GetDpiForSystem() / 96) if user32 else 1.0
+R_PETAL = round(109 * SCALE)  # (R_IN + R_OUT) / 2 in radial.py
+MENU_SIZE = round(400 * SCALE)
 LOG = None
 T0 = 0.0
 
@@ -89,13 +92,16 @@ def prepare_desktop(wallpaper_colors=("#ffb36b", "#ff5f6d", "#c2508f", "#7b8cff"
     subprocess.run(["taskkill", "/F", "/IM", "ServerManager.exe"], capture_output=True)
     adv = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
     subprocess.run(["reg", "add", adv, "/v", "HideFileExt", "/t", "REG_DWORD", "/d", "0", "/f"], capture_output=True)
-    # ShiftWheel: skip the welcome window
-    subprocess.run(["reg", "add", r"HKCU\Software\ShiftWheel\ShiftWheel", "/v", "welcomed", "/t", "REG_SZ",
-                    "/d", "true", "/f"], capture_output=True)
+    skip_welcome()
     user32.SendMessageTimeoutW(0xFFFF, 0x1A, 0, "Environment", 2, 1000, None)
     dismiss_system_dialogs()
     pyautogui.hotkey("win", "d")
     time.sleep(1.2)
+
+
+def skip_welcome():
+    subprocess.run(["reg", "add", r"HKCU\Software\ShiftWheel\ShiftWheel", "/v", "welcomed", "/t", "REG_SZ",
+                    "/d", "true", "/f"], capture_output=True)
 
 
 def dismiss_system_dialogs():
@@ -268,7 +274,7 @@ def drag_open_menu(src, nudge=(620, 40), key="shift"):
     return menu_center(cur)
 
 
-def menu_center(cur, size=400):
+def menu_center(cur, size=MENU_SIZE):
     """The menu is kept fully on screen, so near an edge its centre isn't the cursor."""
     sw, sh = pyautogui.size()
     half = size // 2

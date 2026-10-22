@@ -2,11 +2,16 @@
 
 Every scenario: real mouse drag of a file (from File Explorer or the Desktop) → press Shift →
 drop on a slice → (drive the tool window) → verify the output file on disk.
-Writes e2e_out/results.json, results.md, log.txt, screenshots and a screen recording."""
+Writes e2e_out/results.json, results.md, log.txt, screenshots and a screen recording.
+
+Run with --local on your own PC: test files live in %TEMP%, and the Desktop, wallpaper and
+screen resolution are left alone (the default mode is for throwaway CI machines)."""
 from __future__ import annotations
 
 import json
 import shutil
+import sys
+import tempfile
 import time
 import traceback
 from pathlib import Path
@@ -20,9 +25,11 @@ import shiftwheel.convert  # noqa: F401  (registers HEIC/AVIF support for the ve
 OUT = wk.ROOT / "e2e_out"
 OUT.mkdir(exist_ok=True)
 (OUT / "shots").mkdir(exist_ok=True)
-EXP = Path(r"C:\ShiftWheelTest")
+LOCAL = "--local" in sys.argv
+BASE = Path(tempfile.gettempdir()) if LOCAL else Path("C:\\")
+EXP = BASE / "ShiftWheelTest"
 DESK = wk.desktop_dir()
-STASH = Path(r"C:\ShiftWheelTest_outputs")
+STASH = BASE / "ShiftWheelTest_outputs"
 RESULTS: list[dict] = []
 
 
@@ -182,8 +189,8 @@ def restore_sources(folder: Path):
                 stray.unlink()
         make_files(folder, prefix)
         time.sleep(1.0)
-    # stray copies of Explorer files dropped on the desktop
-    for n in SOURCES:
+    # stray copies of Explorer files dropped on the desktop (CI only: never touch a real Desktop)
+    for n in SOURCES if not LOCAL else []:
         if (DESK / n).exists():
             (DESK / n).unlink()
 
@@ -681,14 +688,18 @@ DESKTOP_SHOWN = [False]
 def main():
     global EX
     wk.set_log(OUT / "log.txt")
-    wk.prepare_desktop()
-    for f in DESK.glob("*"):
-        if f.is_file() and f.suffix.lower() in (".jpg", ".png", ".pdf", ".docx", ".txt", ".mp4", ".wav", ".csv"):
-            f.unlink()
+    if LOCAL:
+        wk.skip_welcome()
+    else:
+        wk.prepare_desktop()
+        for f in DESK.glob("D-*"):           # only the files this test put there
+            if f.is_file():
+                f.unlink()
     shutil.rmtree(EXP, ignore_errors=True)
     shutil.rmtree(STASH, ignore_errors=True)
     make_files(EXP)
-    make_files(DESK, "D-")
+    if not LOCAL:
+        make_files(DESK, "D-")
     app = wk.start_app()
     time.sleep(5)
     EX = wk.open_explorer(EXP)
@@ -758,6 +769,8 @@ def main():
         # ---- second launch with a file (Send To / right-click path)
         run_ipc("Send To → PNG", "Photo.jpg", "PNG", v_format("PNG", ".png"))
         # ---- from the Desktop
+        if LOCAL:
+            raise StopIteration
         run("Desktop: JPG → PNG", "desktop", ["D-Photo.jpg"], "Convert", "PNG", v_format("PNG", ".png"))
         run("Desktop: PDF → TXT", "desktop", ["D-Report.pdf"], "Convert", "TXT", v_format("TXT", ".txt"))
         run("Desktop: DOCX → PDF", "desktop", ["D-Letter.docx"], "Convert", "PDF", v_format("PDF", ".pdf"))
@@ -767,6 +780,8 @@ def main():
             drive_addbg)
         run("Desktop: 2 PDFs merge", "desktop", ["D-Appendix.pdf", "D-Report.pdf"], "Tools", "Merge", v_merged,
             select_extra=True)
+    except StopIteration:
+        wk.log("local run: Desktop scenarios skipped")
     except Exception:
         wk.log("E2E ABORTED\n" + traceback.format_exc())
     finally:

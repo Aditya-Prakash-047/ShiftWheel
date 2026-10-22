@@ -150,6 +150,8 @@ def summarize(action: str, srcs: list, outs: list, extra: str = "") -> Result:
     if name == "Unpack":
         n = sum(1 for o in outs for f in o.rglob("*") if f.is_file()) if o0.is_dir() else len(outs)
         return Result("Unpacked", f"{n} file{'s' if n != 1 else ''} → {o0.name}/", outs, srcs)
+    if name == "Duplicate":
+        return Result("Duplicated", f"{o0.name}" + (f" · {len(outs)} items" if len(outs) > 1 else ""), outs, srcs)
     if name == "Zip":
         sizes, verdict = size_change(sum(_tree_size(s) for s in srcs), after)
         return Result("Compressed into an archive", f"{o0.name} · {sizes}", outs, srcs, good=verdict)

@@ -14,6 +14,7 @@ from PySide6.QtGui import QCursor
 VK_LBUTTON, VK_SHIFT, VK_ESCAPE = 0x01, 0x10, 0x1B
 DRAG_THRESHOLD = 10   # px the mouse must travel with the button held
 NO_DRAG_TIMEOUT = 50  # ticks (≈ 0.75 s) to wait for a file drag to enter before hiding
+TAP_GRACE = 30        # ticks (≈ 0.45 s) a ring-switch tap waits for the drag to reach the menu
 
 
 class ShiftWheelWatcher(QObject):
@@ -32,6 +33,7 @@ class ShiftWheelWatcher(QObject):
         self._shift_was = False
         self._fired = False
         self._idle_ticks = 0
+        self._pending_tap = 0
         self._shown_at = QPoint()
         self._user32 = ctypes.windll.user32 if sys.platform == "win32" else None
         self._mac = None
@@ -55,23 +57,37 @@ class ShiftWheelWatcher(QObject):
     def _down(self, vk: int) -> bool:
         return bool(self._user32.GetAsyncKeyState(vk) & 0x8000)
 
-    def _state(self) -> tuple[bool, bool, bool]:
-        """(left button, trigger key, escape)"""
+    def _state(self) -> tuple[bool, bool, bool, bool]:
+        """(left button, trigger key, escape, trigger key tapped since the last poll).
+        The last one catches a quick tap that started and ended while the UI thread was
+        busy (e.g. the moment the menu opens), which sampling the key alone would miss."""
         if self._mac is not None:
             m = self._mac
-            return m.left_button_down(), m.key_down(self.key_name), m.escape_down()
-        return self._down(VK_LBUTTON), self._down(self.vk), self._down(VK_ESCAPE)
+            return m.left_button_down(), m.key_down(self.key_name), m.escape_down(), False
+        k = self._user32.GetAsyncKeyState(self.vk)
+        return self._down(VK_LBUTTON), bool(k & 0x8000), self._down(VK_ESCAPE), bool(k & 0x0001)
 
     def _tick(self):
-        lbtn, shift, esc = self._state()
+        lbtn, shift, esc, tapped = self._state()
         pos = QCursor.pos()
+        # a new press: seen going down, or a whole tap between two polls (held-key
+        # auto-repeat also sets the tapped bit, but then the key is still down)
+        press = (shift and not self._shift_was) or (tapped and not shift)
 
         if self.menu_visible():
             if not lbtn or esc:
                 # drop happened (or was cancelled) – give the drop event a moment to land
                 QTimer.singleShot(120, self.hide_menu.emit)
-            elif shift and not self._shift_was and self.menu_got_drag():
-                self.toggle_ring.emit()       # tap Shift again to flip Convert ⇄ Tools
+            elif press or self._pending_tap:
+                # tap Shift again to flip Convert → Tools → Print. Right after the menu opens
+                # the drag may not have reached it yet: keep the tap until it does.
+                if self.menu_got_drag():
+                    self._pending_tap = 0
+                    self.toggle_ring.emit()
+                elif press:
+                    self._pending_tap = TAP_GRACE
+                else:
+                    self._pending_tap -= 1
             elif not self.menu_got_drag() and (pos - self._shown_at).manhattanLength() > 6:
                 # the cursor is moving over us but no file drag arrived: it's a window
                 # move or text selection, so get out of the way
@@ -87,6 +103,7 @@ class ShiftWheelWatcher(QObject):
                 if self.enabled and moved and shift and not self._fired:
                     self._fired = True
                     self._idle_ticks = 0
+                    self._pending_tap = 0
                     self._shown_at = pos
                     self.show_menu.emit(pos)
             else:
