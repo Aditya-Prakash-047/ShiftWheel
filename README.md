@@ -2,7 +2,7 @@
 
 Start dragging any file in File Explorer, press **Shift**, and drop it on a slice of the wheel. Convert it, edit it, or print it — right where you are. Everything happens on your PC; nothing is uploaded.
 
-![The wheel for videos, video tools, the Print ring and audio tools](docs/wheels.png)
+![Seven wheel themes, each in light and dark](docs/themes.png)
 
 ## How to use
 
@@ -11,11 +11,37 @@ Start dragging any file in File Explorer, press **Shift**, and drop it on a slic
 3. Drop the file on a slice. The result is saved **next to the original**; the original is never changed.
 4. Tap **Shift** again to switch rings: **Convert → Tools → Print → File**.
 
-![The Santra-style wheel: Convert ring, a hovered slice, the Tools ring](docs/wheel-santra.png)
-
-The wheel looks like Santra's by default (warm peach slices, the slice under the cursor lights up orange). Prefer see-through liquid glass? **Settings → Wheel look**.
-
 Also: right-click any file or folder → **ShiftWheel…**, **Send to → ShiftWheel**, or double-click the tray icon. Every action ends with a notification showing what changed, with **Open**, **Show in folder** and **Undo**.
+
+## Themes
+
+Pick one in **Settings → Appearance**; every theme has a light and a dark version.
+
+| Theme | Look | Inspired by |
+|---|---|---|
+| **Ember** (default) | Matte charcoal or porcelain disc, hairline dividers, one coral slice and a coral marker on the rim | ShiftWheel's own design |
+| **Santra** | Warm peach slices, orange highlight, file size in an orange pill | Santra |
+| **Liquid glass** | Clear glass that refracts whatever is behind it | DragShift (the original look) |
+| **Frost** | Milky frosted glass with a large quiet hub | Apple's “Release to Select” menu |
+| **Graphite** | Near-black disc, hairlines, faint blue halo | Radial for macOS |
+| **Blossom** | Soft tiles split by bold dividers, pink highlight | FileFlow concept |
+| **Neon Night** | Synthwave: glowing cyan lines, magenta highlight (dark only) | OG Converter |
+
+- **Light or dark:** *Match Windows* (default) follows *Settings → Personalisation → Colours* and switches live, for the wheel, ShiftWheel's windows and its notifications. Or force Light / Dark.
+- **Highlight colour:** the theme's own, your **Windows accent colour**, or one of seven colours.
+- **Wheel size:** small, normal, large, extra large.
+
+## Settings
+
+![Settings → Appearance](docs/settings.png)
+
+| Page | What you can change |
+|---|---|
+| **Appearance** | Theme (live previews), light / dark / match Windows, highlight colour, wheel size |
+| **Saving** | Save next to the original, in a “ShiftWheel” subfolder, or in a folder you choose · **Ask for a file name before saving** (rename it or pick another folder; Esc keeps the automatic name) · when the name is taken: keep both or replace the older result (never the original) · after saving: just notify, open the file, or show it in its folder · JPG/WebP quality · PDF → image resolution |
+| **Behaviour** | Trigger key (Shift / Ctrl / Alt) · apps where the wheel never opens (Photoshop, Figma… where Shift-drag already means something) · notifications for every result or only problems · start with Windows · right-click menu entry |
+
+Settings are checked when they're read: anything unknown or out of range falls back to the default, and **Reset to defaults** puts everything back.
 
 ## What it does
 

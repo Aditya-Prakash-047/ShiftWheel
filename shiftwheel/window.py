@@ -103,7 +103,7 @@ class GlassWindow(QWidget):
             # can't re-capture behind ourselves: switch to the system blur instead
             self.liquid.image = None
             if IS_WIN and not self._acrylic:
-                self._acrylic = glass.enable_acrylic(int(self.winId()))
+                self._acrylic = glass.enable_acrylic(int(self.winId()), glass.acrylic_tint())
             self.update()
 
     def keyPressEvent(self, e):
@@ -135,9 +135,9 @@ class GlassWindow(QWidget):
         if img is not None and not img.isNull() and img.size() == self.size():
             p.drawImage(0, 0, img)
             # large surfaces need more opacity than a menu so content stays readable
-            glass.paint_glass(p, path, tint=QColor(22, 17, 34, 150), rainbow_alpha=150)
+            glass.paint_glass(p, path, tint=glass.surface_tint("liquid"), rainbow_alpha=150)
         else:
-            tint = QColor(30, 24, 44, 125) if self._acrylic else QColor(38, 30, 56, 228)
+            tint = glass.surface_tint("acrylic" if self._acrylic else "solid")
             glass.paint_glass(p, path, tint=tint, rainbow_alpha=150)
 
 

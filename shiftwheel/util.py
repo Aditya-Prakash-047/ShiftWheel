@@ -81,7 +81,10 @@ class UserError(Exception):
 
 # Runtime options (filled from Settings at start-up; plain values so worker threads can read them)
 CONFIG = {
-    "output": "next",        # "next" = beside the original, "folder" = a "ShiftWheel" subfolder
+    "output": "next",        # "next" = beside the original, "folder" = a "ShiftWheel" subfolder,
+                             # "custom" = output_folder
+    "output_folder": "",
+    "on_conflict": "number",  # "number" = name (1).ext, "replace" = overwrite an older result
     "jpg_quality": 90,
     "pdf_dpi": 200,
 }
@@ -92,6 +95,13 @@ def output_dir(src: str | Path) -> Path:
     if CONFIG.get("output") == "folder":
         d = d / "ShiftWheel"
         d.mkdir(exist_ok=True)
+    elif CONFIG.get("output") == "custom" and CONFIG.get("output_folder"):
+        custom = Path(CONFIG["output_folder"])
+        try:
+            custom.mkdir(parents=True, exist_ok=True)
+            d = custom
+        except OSError:
+            pass                  # unplugged drive etc.: fall back to beside the original
     return d
 
 
@@ -102,7 +112,18 @@ def sibling(src: str | Path, suffix_label: str = "", ext: str | None = None) -> 
     new_ext = ext if ext is not None else s.suffix
     if not new_ext.startswith("."):
         new_ext = "." + new_ext
-    return unique_path(s.with_name(stem + new_ext))
+    cand = s.with_name(stem + new_ext)
+    if CONFIG.get("on_conflict") == "replace" and not cand.is_dir() and not _same_file(cand, src):
+        return cand               # an older result of the same name is overwritten
+    return unique_path(cand)
+
+
+def _same_file(a: Path, b: str | Path) -> bool:
+    """Never let 'replace' overwrite the original itself."""
+    try:
+        return Path(a).resolve() == Path(b).resolve()
+    except OSError:
+        return True
 
 
 def default_paper() -> str:

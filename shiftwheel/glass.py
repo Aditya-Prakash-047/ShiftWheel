@@ -177,10 +177,79 @@ QMenu::item:selected {{ background: rgba(255,255,255,0.15); }}
 """
 
 
+# ---------------------------------------------------------------- light / dark
+# Windows and notifications are glass in either mode: dark glass with white text, or light
+# glass with ink text. The app sets this from Settings → Appearance (or Windows' own mode).
+_MODE = {"dark": True, "accent": None}
+INK = (29, 26, 38)
+
+
+def set_mode(dark: bool, accent: QColor | None = None) -> None:
+    _MODE["dark"] = bool(dark)
+    _MODE["accent"] = QColor(accent) if accent is not None else None
+
+
+def is_dark() -> bool:
+    return _MODE["dark"]
+
+
+def ink(alpha: int = 255) -> QColor:
+    """Text / line colour for glass surfaces in the current mode."""
+    return QColor(255, 255, 255, alpha) if _MODE["dark"] else QColor(*INK, alpha)
+
+
+def good_color() -> QColor:
+    return QColor("#8dffb8") if _MODE["dark"] else QColor("#0f7a45")
+
+
+def warn_color() -> QColor:
+    return QColor("#ffd36b") if _MODE["dark"] else QColor("#a35f00")
+
+
+def surface_tint(kind: str, error: bool = False) -> QColor:
+    """kind: 'liquid' (over a live refraction), 'acrylic' (over the system blur), 'solid'."""
+    if error:
+        return {"liquid": QColor(140, 30, 50, 150), "acrylic": QColor(150, 40, 55, 150)}.get(
+            kind, QColor(120, 30, 45, 230)) if _MODE["dark"] else \
+            {"liquid": QColor(255, 215, 220, 175), "acrylic": QColor(255, 220, 225, 185)}.get(
+                kind, QColor(255, 228, 232, 240))
+    if _MODE["dark"]:
+        return {"liquid": QColor(22, 17, 34, 150), "acrylic": QColor(30, 24, 44, 125)}.get(kind, QColor(38, 30, 56, 228))
+    return {"liquid": QColor(252, 250, 255, 170), "acrylic": QColor(250, 248, 253, 150)}.get(
+        kind, QColor(248, 246, 251, 238))
+
+
+def acrylic_tint() -> int:
+    """ABGR tint for the Windows blur-behind."""
+    return 0x40281E28 if _MODE["dark"] else 0x70FBF7F9
+
+
+def _accent_stops() -> tuple[str, str, str]:
+    a = _MODE["accent"]
+    if a is None:
+        return ACCENT_A, ACCENT_B, ACCENT_C
+    return a.lighter(125).name(), a.name(), a.darker(118).name()
+
+
 def qss() -> str:
-    """The stylesheet, with a font family that is really installed (see util.ui_family)."""
+    """The stylesheet for the current mode and accent, with a font family that is really
+    installed (see util.ui_family)."""
     from .util import ui_family
-    return _QSS.replace("@FONT@", ui_family(False))
+    s = _QSS.replace("@FONT@", ui_family(False))
+    a, b, c = _accent_stops()
+    s = s.replace(ACCENT_A, a).replace(ACCENT_B, b).replace(ACCENT_C, c)
+    if _MODE["dark"]:
+        return s
+    ink_rgb = ",".join(str(v) for v in INK)
+    s = (s.replace("rgba(255,255,255,", f"rgba({ink_rgb},")
+          .replace(f"color: {TEXT};", "color: #1d1a26;")
+          .replace("#2a2438", "#f7f5fb").replace("color: white", "color: #1d1a26")
+          .replace("#8dffb8", "#0f7a45").replace("#ffd36b", "#a35f00")
+          .replace("background: rgba(0,0,0,0.16)", "background: rgba(255,255,255,0.62)")
+          .replace("background: rgba(0,0,0,0.12)", "background: rgba(255,255,255,0.5)"))
+    # filled controls keep white text on their colour
+    return s + ("QPushButton#primary, QPushButton:checked { color: #ffffff; }\n"
+                "QSlider::handle:horizontal { background: #ffffff; border: 1px solid rgba(0,0,0,0.25); }\n")
 
 
 def __getattr__(name):        # keep `glass.QSS` working
@@ -342,7 +411,10 @@ class LiquidBacking(QObject):
     def _done(self, serial, img, light):
         if serial == self._serial:
             self.image, self.is_light = img, light
-            self.changed.emit()
+            try:
+                self.changed.emit()
+            except RuntimeError:
+                pass              # the window closed while its glass was still rendering
 
     def moved(self):
         """Window moved/resized: refresh once it settles (only possible when excluded)."""
