@@ -261,6 +261,34 @@ def compress_video(src, quality: str = "balanced", max_height: int | None = None
     return out
 
 
+def estimate_video(src, quality: str = "balanced", max_height: int | None = None,
+                   target_mb: float | None = None, samples: int = 3, seconds: float = 2.0) -> int:
+    """Expected size of compress_video: encode a few short samples spread through the video with
+    the same settings and scale to the full length (how encoders' size previews work)."""
+    info = probe(src)
+    if target_mb:
+        return int(target_mb * 1048576)
+    if not info.has_video:
+        return estimate_audio(src, "small")
+    audio_k = (96 if quality == "small" else 128) if info.has_audio else 0
+    vf = ["-vf", f"scale=-2:{max_height}"] if max_height and info.height > max_height else []
+    crf = {"small": 30, "balanced": 26, "high": 22}[quality]
+    dur = max(info.duration, 0.1)
+    if dur <= samples * seconds * 1.5:
+        spots, seg = [0.0], dur
+    else:
+        spots, seg = [dur * (i + 1) / (samples + 1) - seconds / 2 for i in range(samples)], seconds
+    total = 0
+    with tempfile.TemporaryDirectory() as td:
+        for i, t in enumerate(spots):
+            out = Path(td) / f"s{i}.mp4"
+            run(["-ss", f"{max(0.0, t):.2f}", "-t", f"{seg:.2f}", "-i", str(src), "-map", "0:v:0", *vf,
+                 "-c:v", "libx264", "-preset", "medium", "-crf", str(crf), "-pix_fmt", "yuv420p", "-an", str(out)])
+            total += out.stat().st_size
+    video_bps = total / (seg * len(spots))
+    return int((video_bps + audio_k * 125) * dur * 1.01)
+
+
 def _two_pass(src, out: Path, info: Info, target_mb: float, vf: list, aud: list, progress: Progress) -> Path:
     """Two-pass x264 aimed at a file size; one corrective re-encode if it still lands over."""
     audio_k = 96 if info.has_audio else 0
@@ -449,11 +477,39 @@ def merge(srcs: list, progress: Progress = None) -> Path:
 
 
 # ---------------------------------------------------------------- audio tools
-def compress_audio(src, kbps: int = 96, progress: Progress = None) -> Path:
+# (key, name, description, kbps, mono)
+AUDIO_LEVELS = [
+    ("high", "High", "192 kbps stereo · hard to tell from the original", 192, False),
+    ("balanced", "Balanced", "128 kbps stereo · good for music", 128, False),
+    ("small", "Small", "96 kbps stereo · podcasts and casual listening", 96, False),
+    ("voice", "Voice", "48 kbps mono · speech, lectures, voice notes", 48, True),
+]
+
+
+def _audio_level(level: str) -> tuple[int, bool]:
+    for key, _, _, kbps, mono in AUDIO_LEVELS:
+        if key == level:
+            return kbps, mono
+    return 96, False
+
+
+def compress_audio(src, kbps: int = 96, progress: Progress = None, level: str | None = None) -> Path:
+    mono = False
+    if level:
+        kbps, mono = _audio_level(level)
     info = probe(src)
     out = sibling(src, "Compressed", ".mp3")
-    run(["-i", str(src), "-vn", "-c:a", "libmp3lame", "-b:a", f"{kbps}k", str(out)], info.duration, progress, out)
+    args = ["-i", str(src), "-vn", "-c:a", "libmp3lame", "-b:a", f"{kbps}k"]
+    if mono:
+        args += ["-ac", "1"]
+    run([*args, str(out)], info.duration, progress, out)
     return out
+
+
+def estimate_audio(src, level: str) -> int:
+    """MP3 at a constant bitrate: bitrate × duration, plus the ID3 header."""
+    kbps, _ = _audio_level(level)
+    return int(probe(src).duration * kbps * 1000 / 8) + 4096
 
 
 def normalize(src, progress: Progress = None) -> Path:

@@ -92,20 +92,3 @@ def open_terminal(path: str | Path) -> None:
             if shutil.which(term):
                 subprocess.Popen([term], cwd=str(folder))
                 break
-
-
-def share(path: str | Path) -> bool:
-    """Windows' share sheet (Nearby sharing, Mail, apps) through Explorer's own Share verb."""
-    if sys.platform != "win32":
-        return False
-    import win32com.client
-    p = Path(path)
-    item = win32com.client.Dispatch("Shell.Application").Namespace(str(p.parent)).ParseName(p.name)
-    if item is None:
-        return False
-    for v in item.Verbs():
-        if v.Name.replace("&", "").strip().lower() == "share":
-            v.DoIt()
-            return True
-    item.InvokeVerbEx("Windows.ModernShare")
-    return True

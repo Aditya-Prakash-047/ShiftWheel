@@ -4,7 +4,6 @@ organising, metadata editing. The windows live in tools2.py."""
 from __future__ import annotations
 
 import math
-import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -326,7 +325,6 @@ def read_fields(src) -> dict[str, str]:
             md = doc.metadata or {}
         return {k: md.get(key) or "" for k, _, key in PDF_FIELDS}
     if cat in ("video", "audio"):
-        import json
         import subprocess
         exe = M.ffmpeg_exe()
         r = subprocess.run([exe, "-hide_banner", "-i", str(src), "-f", "ffmetadata", "-"], capture_output=True,

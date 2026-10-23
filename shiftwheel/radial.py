@@ -612,6 +612,24 @@ class RadialMenu(QWidget):
                    "Images · PDF · Word · Text", fg_dim, None)
 
     def _paint_fallback(self, p: QPainter, c: QPointF, n: int):
+        """The glass disc without a captured backdrop. It doesn't change while the wheel is open
+        (hover effects are drawn on top), so it is rendered once and reused: ~10 ms → <1 ms a frame."""
+        dev = p.device()
+        dpr = dev.devicePixelRatioF() if dev is not None else 1.0
+        key = (n, self.backdrop.cacheKey() if self.backdrop is not None else 0, id(self.look), round(dpr, 2))
+        if getattr(self, "_fallback_key", None) != key:
+            pm = QPixmap(int(SIZE * dpr), int(SIZE * dpr))
+            pm.setDevicePixelRatio(dpr)
+            pm.fill(Qt.transparent)
+            q = QPainter(pm)
+            q.setRenderHint(QPainter.Antialiasing)
+            q.setRenderHint(QPainter.SmoothPixmapTransform)
+            self._paint_fallback_layer(q, c, n)
+            q.end()
+            self._fallback, self._fallback_key = pm, key
+        p.drawPixmap(0, 0, self._fallback)
+
+    def _paint_fallback_layer(self, p: QPainter, c: QPointF, n: int):
         hub = QPainterPath()
         hub.addEllipse(c, R_HUB, R_HUB)
         glass.paint_glass(p, hub, self.backdrop, QPointF(0, 0), tint=QColor(22, 18, 34, 80),

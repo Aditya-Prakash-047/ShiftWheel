@@ -79,6 +79,7 @@ class GlassWindow(QWidget):
 
     def showEvent(self, e):
         super().showEvent(e)
+        glass.round_popups(self)
         if not getattr(self, "_placed", False):
             scr = self.screen().availableGeometry()
             self.move(scr.center() - self.rect().center())

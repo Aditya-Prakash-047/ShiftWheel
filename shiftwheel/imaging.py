@@ -8,8 +8,8 @@ from pathlib import Path
 from PIL import Image, ImageChops, ImageDraw, ImageEnhance, ImageFilter, ImageOps
 from PIL.ExifTags import GPSTAGS, TAGS
 
-from .convert import atomic_save, fitz, flatten, open_image, open_pdf, save_image
-from .util import sibling
+from .convert import atomic_save, fitz, open_image, open_pdf, save_image
+from .util import file_size, sibling
 
 EXT_TARGET = {".jpg": "JPG", ".jpeg": "JPG", ".png": "PNG", ".webp": "WEBP", ".tif": "TIFF",
               ".tiff": "TIFF", ".bmp": "BMP", ".heic": "HEIC", ".heif": "HEIC",
@@ -53,18 +53,72 @@ def compress_image(src: str | Path, quality: int = 72, max_side: int | None = No
     return out
 
 
-def compress_pdf(src: str | Path, image_dpi: int = 150, quality: int = 70) -> Path:
-    out = sibling(src, "Compressed", ".pdf")
-    with open_pdf(src) as doc:
+# Compression levels for PDFs: (key, name, what it does, image dpi or None = lossless, JPEG quality)
+PDF_LEVELS = [
+    ("light", "Light", "Lossless clean-up · nothing looks different", None, 0),
+    ("balanced", "Balanced", "Pictures at 150 dpi · sharp on screen and in print", 150, 70),
+    ("strong", "Strong", "Pictures at 110 dpi · good for email", 110, 55),
+    ("smallest", "Smallest", "Pictures at 72 dpi · fine on a phone or laptop screen", 72, 40),
+]
+
+
+def _pdf_level(level: str) -> tuple[int | None, int]:
+    for key, _, _, dpi, q in PDF_LEVELS:
+        if key == level:
+            return dpi, q
+    return 150, 70
+
+
+def _compress_doc(doc, image_dpi: int | None, quality: int, out):
+    if image_dpi:
         try:
             doc.rewrite_images(dpi_threshold=image_dpi + 10, dpi_target=image_dpi,
                                quality=quality, lossy=True, lossless=True, bitonal=True,
                                color=True, gray=True, set_to_gray=False)
         except Exception:
             pass  # older PyMuPDF: still get structural compression below
-        doc.save(out, garbage=4, deflate=True, deflate_images=True, deflate_fonts=True,
-                 clean=True, use_objstms=1)
+    try:
+        doc.subset_fonts()        # keep only the glyphs that are used
+    except Exception:
+        pass
+    doc.save(out, garbage=4, deflate=True, deflate_images=True, deflate_fonts=True,
+             clean=True, use_objstms=1)
+
+
+def compress_pdf(src: str | Path, image_dpi: int | None = 150, quality: int = 70, level: str | None = None,
+                 out: Path | None = None) -> Path:
+    """Smaller PDF: pictures re-encoded at `image_dpi` (None = lossless only), unused objects and
+    font glyphs dropped, streams deflated, object streams packed. `level` picks from PDF_LEVELS."""
+    if level:
+        image_dpi, quality = _pdf_level(level)
+    out = out or sibling(src, "Compressed", ".pdf")
+    with open_pdf(src) as doc:
+        atomic_save(lambda dst: _compress_doc(doc, image_dpi, quality, dst), out)
     return out
+
+
+def estimate_pdf(src: str | Path, level: str, max_pages: int = 12) -> tuple[int, bool]:
+    """(bytes, exact) a PDF would take at `level`. Small files are compressed for real in memory;
+    big ones from up to `max_pages` pages spread through the file, scaled to its page count."""
+    dpi, q = _pdf_level(level)
+    size = file_size(src)
+    with open_pdf(src) as doc:
+        n = doc.page_count
+        if n <= max_pages * 2 and size <= 40_000_000:
+            buf = io.BytesIO()
+            _compress_doc(doc, dpi, q, buf)
+            return buf.tell(), True
+        step = max(1, n // max_pages)
+        pages = list(range(0, n, step))[:max_pages]
+        sample = fitz.open()
+        for i in pages:
+            sample.insert_pdf(doc, from_page=i, to_page=i)
+    out = io.BytesIO()
+    _compress_doc(sample, dpi, q, out)
+    sample.close()
+    # average compressed page × page count (the original's own storage says little: it may
+    # not be deflated at all, or already be tightly packed)
+    return int(min(size, out.tell() * n / len(pages))), False
 
 
 def encode_size(im: Image.Image, target: str, quality: int) -> int:
@@ -121,6 +175,24 @@ def compress_to(src: str | Path, quality: int, max_side: int | None, target: str
     else:
         save_image(im, out, target, quality=quality)
     return out
+
+
+def relative_box(size: tuple[int, int], rel: tuple[float, float, float, float],
+                 ratio: float | None = None) -> tuple[int, int, int, int]:
+    """The same area (x, y, w, h as fractions) on an image of another size; with `ratio` the
+    box keeps that exact aspect ratio, centred on the same spot, inside the image."""
+    W, H = size
+    x, y, w, h = rel[0] * W, rel[1] * H, rel[2] * W, rel[3] * H
+    if ratio:
+        cx, cy = x + w / 2, y + h / 2
+        w = min(W, max(w, h * ratio))
+        h = w / ratio
+        if h > H:
+            h, w = H, H * ratio
+        x = min(max(0, cx - w / 2), W - w)
+        y = min(max(0, cy - h / 2), H - h)
+    x0, y0 = int(round(x)), int(round(y))
+    return x0, y0, min(W, x0 + int(round(w))), min(H, y0 + int(round(h)))
 
 
 # ---------------------------------------------------------------- resize

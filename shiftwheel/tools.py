@@ -76,6 +76,7 @@ def dims_text(w: int, h: int) -> str:
 
 class ToolWindow(GlassWindow):
     tool_name = ""
+    batch = False       # True: one set of settings can be applied to every dropped file
 
     def __init__(self, title: str, paths, notify: Notify, size=(820, 680)):
         super().__init__(title, size=size)
@@ -112,6 +113,11 @@ class ToolWindow(GlassWindow):
             row.addWidget(reset)
         for b in extra_buttons:
             row.addWidget(b)
+        if self.batch and len(self.paths) > 1:
+            self.all_files = QCheckBox(f"Apply to all {len(self.paths)} files")
+            self.all_files.setChecked(True)
+            self.all_files.setToolTip(f"The preview shows {self.path.name}; the same settings go to every file")
+            row.addWidget(self.all_files)
         row.addStretch(1)
         cancel = QPushButton("Cancel")
         cancel.clicked.connect(self.close)
@@ -123,16 +129,24 @@ class ToolWindow(GlassWindow):
         self.primary_btn = ok
         return row
 
+    def targets(self) -> list[Path]:
+        """The files to save: every dropped file when 'Apply to all' is on, else the one shown."""
+        box = getattr(self, "all_files", None)
+        if not self.batch or (box is not None and not box.isChecked()):
+            return [self.path]
+        return list(self.paths)
+
     def run(self, fn: Callable[[], list], working: str, extra: str = ""):
         """Save in the background (window closes now) or, without the app, synchronously."""
         action = f"tool:{self.tool_name}"
+        srcs = [str(p) for p in (self.targets() if self.batch else self.paths)]
         if self.submit is not None:
-            self.submit(action, [str(p) for p in self.paths], fn, working, extra)
+            self.submit(action, srcs, fn, working, extra)
             self.close()
         else:
             from .util import call_with_progress
             outs = call_with_progress(fn)
-            self.notify(action, [str(p) for p in self.paths], outs, extra)
+            self.notify(action, srcs, outs, extra)
             self.close()
 
 
@@ -282,16 +296,17 @@ class CropView(ImageView):
 
 
 class CropWindow(ToolWindow):
+    batch = True
     tool_name = "Crop"
     RATIOS = [("Free", None), ("Original", "orig"), ("1:1", 1.0), ("4:3", 4 / 3), ("3:2", 1.5),
               ("16:9", 16 / 9), ("9:16", 9 / 16), ("4:5", 0.8)]
 
     def __init__(self, path, notify):
         super().__init__("Crop Image", path, notify)
+        path = self.path
         pv = open_preview(path, 1400)
         with Image.open(path) as im:
             fw, fh = im.size
-        from PIL import ImageOps
         with Image.open(path) as im:
             o = im.getexif().get(0x0112, 1)
         if o in (5, 6, 7, 8):
@@ -374,7 +389,7 @@ class CropWindow(ToolWindow):
         self.view.reset_sel()
 
     def apply(self):
-        s, k, rot, path = self.view.sel, self.view.k, self.rot, self.path
+        s, k, rot = self.view.sel, self.view.k, self.rot
         fw, fh = (self.full_size[1], self.full_size[0]) if rot % 180 else self.full_size
         x0, y0 = round(s.left() * k), round(s.top() * k)
         w, h = round(s.width() * k), round(s.height() * k)
@@ -402,12 +417,20 @@ class CropWindow(ToolWindow):
                 w = fw - x0
                 h = round(w / r)
         box = (x0, y0, x0 + w, y0 + h)
+        rel = (x0 / fw, y0 / fh, w / fw, h / fh)
+        ratio, targets, first = self.view.ratio, self.targets(), self.path
 
-        def work():
-            im = open_image(path)
-            if rot:
-                im = im.rotate(-rot, expand=True)
-            return [imaging.save_like(im.crop(box), path, "Cropped")]
+        def work(progress=None):
+            outs = []
+            for i, p in enumerate(targets):
+                im = open_image(p)
+                if rot:
+                    im = im.rotate(-rot, expand=True)
+                b = box if p == first else imaging.relative_box(im.size, rel, ratio)
+                outs.append(imaging.save_like(im.crop(b), p, "Cropped"))
+                if progress:
+                    progress((i + 1) / len(targets))
+            return outs
         extra = f"rotated {rot}°" if rot else ""
         self.run(work, "Cropping…", extra)
 
@@ -430,11 +453,13 @@ SOLIDS = ["#ffffff", "#f2f2f7", "#d1d1d6", "#8e8e93", "#1c1c1e", "#000000", "#ff
 
 
 class AddBgWindow(ToolWindow):
+    batch = True
     tool_name = "Add BG"
     ASPECTS = ["Auto", "1:1", "4:3", "16:9", "9:16", "4:5"]
 
     def __init__(self, path, notify):
         super().__init__("Add BG", path, notify, size=(880, 780))
+        path = self.path
         self.small = open_preview(path, 760)
         with Image.open(path) as im:
             self.full_w = max(im.size) if im.getexif().get(0x0112, 1) in (5, 6, 7, 8) else im.width
@@ -560,14 +585,22 @@ class AddBgWindow(ToolWindow):
         QTimer.singleShot(1400, lambda: self.copy_btn.setText("Copy"))
 
     def save(self):
-        params, path = self._params(self._full_scale()), self.path
+        targets = self.targets()
+        params = {}
+        for p in targets:
+            with Image.open(p) as im:
+                params[p] = self._params(max(1.0, max(im.size) / 1000))   # corners scale with the image
 
-        def work():
-            out_im = imaging.add_background(open_image(path), params)
-            out = sibling(path, "With Background", ".png")
+        def work(progress=None):
             from .convert import save_image
-            save_image(out_im, out, "PNG")
-            return [out]
+            outs = []
+            for i, p in enumerate(targets):
+                out = sibling(p, "With Background", ".png")
+                save_image(imaging.add_background(open_image(p), params[p]), out, "PNG")
+                outs.append(out)
+                if progress:
+                    progress((i + 1) / len(targets))
+            return outs
         self.run(work, "Adding background…")
 
 
@@ -883,10 +916,12 @@ class RedactWindow(ToolWindow):
 
 # ================================================================ EDIT
 class EditWindow(ToolWindow):
+    batch = True
     tool_name = "Edit"
 
     def __init__(self, path, notify):
         super().__init__("Edit", path, notify, size=(880, 780))
+        path = self.path
         self.small = open_preview(path, 900)
         with Image.open(path) as im:
             self.full_size = im.size if im.getexif().get(0x0112, 1) not in (5, 6, 7, 8) else im.size[::-1]
@@ -1018,19 +1053,26 @@ class EditWindow(ToolWindow):
 
     def save(self):
         adj = imaging.Adjust(**vars(self._collect(True)))
-        path = self.path
+        targets = self.targets()
 
-        def work():
-            return [imaging.save_like(imaging.apply_adjust(open_image(path), adj), path, "Edited")]
+        def work(progress=None):
+            outs = []
+            for i, p in enumerate(targets):
+                outs.append(imaging.save_like(imaging.apply_adjust(open_image(p), adj), p, "Edited"))
+                if progress:
+                    progress((i + 1) / len(targets))
+            return outs
         self.run(work, "Applying edits…", self._summary())
 
 
 # ================================================================ METADATA
 class MetadataWindow(ToolWindow):
+    batch = True
     tool_name = "Metadata"
 
     def __init__(self, path, notify, is_pdf: bool = False):
         super().__init__("Metadata", path, notify, size=(640, 380))
+        path = self.path
         self.is_pdf = is_pdf
         info = imaging.read_pdf_metadata(path) if is_pdf else imaging.read_image_metadata(path)
         summary = {} if is_pdf else imaging.metadata_summary(path)
@@ -1106,16 +1148,21 @@ class MetadataWindow(ToolWindow):
         self.close()
 
     def strip(self):
-        path, is_pdf = self.path, self.is_pdf
-        detail = f"removed {self.n_fields} field{'s' if self.n_fields != 1 else ''}" + (" incl. GPS location" if self.has_gps else "")
+        targets, is_pdf = self.targets(), self.is_pdf
+        if len(targets) > 1:
+            detail = f"{len(targets)} files cleaned"
+        else:
+            detail = f"removed {self.n_fields} field{'s' if self.n_fields != 1 else ''}" + \
+                (" incl. GPS location" if self.has_gps else "")
 
         def work():
-            return [imaging.strip_pdf_metadata(path) if is_pdf else imaging.strip_image_metadata(path)]
+            return [imaging.strip_pdf_metadata(p) if is_pdf else imaging.strip_image_metadata(p) for p in targets]
         self.run(work, "Removing metadata…", detail)
 
     def strip_location(self):
-        path = self.path
-        self.run(lambda: [imaging.strip_location(path)], "Removing location…", "GPS removed, camera info kept")
+        targets = self.targets()
+        self.run(lambda: [imaging.strip_location(p) for p in targets], "Removing location…",
+                 "GPS removed, camera info kept")
 
 
 # ================================================================ COMPRESS
@@ -1124,6 +1171,8 @@ class CompressWindow(ToolWindow):
     SIDES = [("Original size", None), ("Max 3840 px", 3840), ("Max 2560 px", 2560),
              ("Max 1920 px", 1920), ("Max 1280 px", 1280), ("Max 800 px", 800)]
     TARGETS = [("2 MB", 2_000_000), ("1 MB", 1_000_000), ("500 KB", 500_000), ("200 KB", 200_000), ("100 KB", 100_000)]
+    PRESETS = [("High", "Quality 88 · no visible change", 88), ("Medium", "Quality 72 · the usual web setting", 72),
+               ("Low", "Quality 55 · small, slight softening", 55), ("Smallest", "Quality 40 · tiny, visible artefacts", 40)]
 
     def __init__(self, paths, notify):
         super().__init__("Compress", paths, notify, size=(640, 580))
@@ -1141,6 +1190,21 @@ class CompressWindow(ToolWindow):
         g.setContentsMargins(0, 0, 0, 0)
         self.q = slider(10, 95, 72)
         slider_row(g, 0, "Quality", self.q, lambda v: f"{v}")
+        presets = QHBoxLayout()
+        self.pgrp = QButtonGroup(self)
+        for i, (lbl, tip, q) in enumerate(self.PRESETS):
+            b = QPushButton(lbl)
+            b.setCheckable(True)
+            b.setToolTip(tip)
+            b.setChecked(q == self.q.value())
+            b.clicked.connect(lambda _=False, q=q: self.q.setValue(q))
+            self.pgrp.addButton(b, i)
+            presets.addWidget(b)
+        presets.addStretch(1)
+        self.q.valueChanged.connect(lambda v: [b.setChecked(self.PRESETS[i][2] == v)
+                                               for i, b in enumerate(self.pgrp.buttons())])
+        self.pgrp.setExclusive(False)
+        g.addLayout(presets, 1, 1, 1, 2)
         self.body.addWidget(self.q_box)
 
         self.t_box = QWidget()
@@ -1416,10 +1480,12 @@ class ResizeWindow(ToolWindow):
 
 # ================================================================ PROTECT (PDF)
 class ProtectWindow(ToolWindow):
+    batch = True
     tool_name = "Protect"
 
     def __init__(self, path, notify):
         super().__init__("Password-protect PDF", path, notify, size=(520, 330))
+        path = self.path
         g = QGridLayout()
         self.pw = QLineEdit()
         self.pw2 = QLineEdit()
@@ -1460,5 +1526,5 @@ class ProtectWindow(ToolWindow):
             self.msg.setText("AES-256 encryption. Anyone opening the PDF will need this password.")
 
     def save(self):
-        pw, path = self.pw.text(), self.path
-        self.run(lambda: [imaging.protect_pdf(path, pw)], "Encrypting…")
+        pw, targets = self.pw.text(), self.targets()
+        self.run(lambda: [imaging.protect_pdf(p, pw) for p in targets], "Encrypting…")

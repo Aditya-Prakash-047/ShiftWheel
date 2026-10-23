@@ -119,7 +119,7 @@ def test_shortcut_resolves_to_target(img, tmp_path):
 def test_each_wheel_has_its_key_and_taps_are_never_missed():
     from PySide6.QtCore import QPoint
     from PySide6.QtWidgets import QApplication
-    from shiftwheel.settings import KEY_VK
+    from shiftwheel.keys import WIN_VK as KEY_VK
     from shiftwheel.trigger import TAP_GRACE, ShiftWheelWatcher
     QApplication.instance() or QApplication([])
     state = {"visible": False, "got_drag": False}

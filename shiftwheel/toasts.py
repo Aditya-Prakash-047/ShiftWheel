@@ -5,13 +5,12 @@ thumbnail, what changed (e.g. "2.4 MB → 610 KB · 75% smaller") and actions:
 Open · Show in folder · Undo (moves the new files to the Recycle Bin)."""
 from __future__ import annotations
 
-import math
 import os
 import subprocess
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import (QEasingCurve, QFile, QPointF, QRect, QRectF, Qt, QTimer, QUrl,
+from PySide6.QtCore import (QEasingCurve, QFile, QRect, QRectF, Qt, QTimer, QUrl,
                             QVariantAnimation, Signal)
 from PySide6.QtGui import (QColor, QCursor, QDesktopServices, QFont, QFontMetrics,
                            QGuiApplication, QPainter, QPainterPath, QPen, QPixmap)

@@ -9,7 +9,7 @@ from pathlib import Path
 
 from PIL import Image, ImageOps
 
-from .util import UserError, sibling
+from .util import LazyModule, UserError, sibling
 
 try:  # HEIC / HEIF support
     import pillow_heif
@@ -18,10 +18,8 @@ try:  # HEIC / HEIF support
 except Exception:  # pragma: no cover
     HEIF_OK = False
 
-try:
-    import pymupdf as fitz
-except ImportError:  # pragma: no cover
-    import fitz  # type: ignore
+# loaded on the first PDF job, not at start-up; its optional layout add-on is left out on purpose
+fitz = LazyModule("pymupdf", "fitz", on_load=lambda m: getattr(m, "no_recommend_layout", lambda: None)())
 
 IMAGE_TARGETS = ["PNG", "JPG", "WEBP", "HEIC", "TIFF", "AVIF", "BMP", "PDF", "ICO", "GIF"]
 PDF_TARGETS = ["DOCX", "PPTX", "XLSX", "JPG", "PNG", "EPUB", "TXT", "MD"]     # Santra's order

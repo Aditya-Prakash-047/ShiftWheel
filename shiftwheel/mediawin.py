@@ -6,7 +6,7 @@ when it's available."""
 from __future__ import annotations
 
 from PIL import Image
-from PySide6.QtCore import QPointF, QRectF, Qt, QTimer, QUrl, Signal
+from PySide6.QtCore import QObject, QPointF, QRectF, QRunnable, Qt, QThreadPool, QTimer, QUrl, Signal
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QGridLayout, QHBoxLayout, QLabel, QPushButton,
                                QWidget)
@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QGridLayout, QHBoxLayo
 from . import media as M
 from .glass import qimage_from_pil
 from .tools import ToolWindow, section, toggle_row
-from .util import file_size, human_size
+from .util import file_size, human_size, keep, release
 
 
 class RangeBar(QWidget):
@@ -308,6 +308,26 @@ class TrimWindow(ToolWindow):
             self.run(lambda: [M.snapshot(path, s)], "Saving frame…", f"at {M.fmt_time(s)}")
 
 
+class _EstimateSig(QObject):
+    done = Signal(object, int)
+
+
+class _EstimateVideo(QRunnable):
+    def __init__(self, src: str, key: tuple):
+        super().__init__()
+        self.src, self.key, self.sig = src, key, _EstimateSig()
+
+    def run(self):
+        try:
+            n = M.estimate_video(self.src, *self.key)
+        except Exception:  # noqa: BLE001
+            n = -1
+        try:
+            self.sig.done.emit(self.key, n)
+        except RuntimeError:            # window closed meanwhile
+            pass
+
+
 class VideoCompressWindow(ToolWindow):
     tool_name = "Compress"
     HEIGHTS = [("Keep size", None), ("1080p", 1080), ("720p", 720), ("480p", 480)]
@@ -341,20 +361,56 @@ class VideoCompressWindow(ToolWindow):
         g.addWidget(self.mb, 1, 1)
         self.body.addLayout(g)
         self.body.addLayout(presets)
+        self.est = QLabel("")
+        self.est.setObjectName("big")
+        self.body.addWidget(self.est)
         self.note = QLabel("")
         self.note.setObjectName("dim")
         self.note.setWordWrap(True)
         self.body.addWidget(self.note)
         self.body.addStretch(1)
+        self._cache: dict = {}
+        self._est_timer = QTimer(self, singleShot=True, interval=350, timeout=self._estimate)
         self.q.idClicked.connect(self._update)
         self.mb.valueChanged.connect(self._update)
         self.res.currentIndexChanged.connect(self._update)
         self.body.addLayout(self.footer("Compress", self.save))
         self._update()
 
+    def _settings(self):
+        qual = ["small", "balanced", "high", "balanced"][self.q.checkedId()]
+        mb = self.mb.value() if self.q.checkedId() == 3 else None
+        return qual, self.res.currentData(), mb
+
+    def _estimate(self):
+        """Size preview: a few seconds of the first video encoded with these settings."""
+        key = self._settings()
+        before = file_size(self.paths[0])
+        if key in self._cache:
+            return self._show_estimate(self._cache[key], before)
+        self.est.setText("Estimating size…")
+        job = keep(_EstimateVideo(str(self.paths[0]), key))
+
+        def done(k, n):
+            release(job)
+            self._cache[k] = n
+            if k == self._settings():
+                self._show_estimate(n, before)
+        job.sig.done.connect(done)
+        QThreadPool.globalInstance().start(job)
+
+    def _show_estimate(self, n: int, before: int):
+        if n < 0:
+            self.est.setText("")
+            return
+        from .compresswin import describe
+        each = " for the first video" if len(self.paths) > 1 else ""
+        self.est.setText(f"{human_size(before)} → {describe(before, n, False)}{each}")
+
     def _update(self, *_):
         target = self.q.checkedId() == 3
         self.mb.setEnabled(target)
+        self._est_timer.start()
         i = self.infos[0]
         self.note.setText(
             (f"Aims for about {self.mb.value():.1f} MB per video. " if target else "") +
@@ -378,6 +434,7 @@ class VideoCompressWindow(ToolWindow):
 
 
 class SpeedWindow(ToolWindow):
+    batch = True
     tool_name = "Speed"
     SPEEDS = [0.25, 0.5, 0.75, 1.25, 1.5, 2.0, 3.0, 4.0]
 
@@ -401,5 +458,12 @@ class SpeedWindow(ToolWindow):
                           "voice pitch is kept")
 
     def save(self):
-        f, path = self.SPEEDS[self.grp.checkedId()], self.path
-        self.run(lambda progress=None: [M.speed(path, f, progress)], "Changing speed…", f"{f:g}×")
+        f, targets = self.SPEEDS[self.grp.checkedId()], self.targets()
+
+        def work(progress=None):
+            outs = []
+            for i, p in enumerate(targets):
+                sub = (lambda x, i=i: progress((i + x) / len(targets))) if progress else None
+                outs.append(M.speed(p, f, sub))
+            return outs
+        self.run(work, "Changing speed…", f"{f:g}×")

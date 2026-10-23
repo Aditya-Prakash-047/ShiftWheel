@@ -5,13 +5,13 @@ import json
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QSettings, QSize, Qt, QTimer, Signal
+from PySide6.QtCore import QObject, QSettings, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QIcon, QKeySequence, QPixmap
 from PySide6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QFileDialog, QFrame, QGridLayout,
                                QHBoxLayout, QKeySequenceEdit, QLabel, QLineEdit, QPushButton, QScrollArea,
                                QSlider, QStackedWidget, QVBoxLayout, QWidget)
 
-from . import __version__, sounds, themes
+from . import __version__, glass, keys, sounds, themes
 from .util import CONFIG
 from .window import GlassWindow
 
@@ -24,11 +24,6 @@ RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 # Apps where Shift+drag means something else (constrain, duplicate…): no wheel there.
 DEFAULT_EXCLUDED = "Photoshop.exe, Illustrator.exe, InDesign.exe, AfterFX.exe, Figma.exe, blender.exe, Resolve.exe"
 
-# Keys that can open a ring while you drag (virtual-key codes for the watcher)
-KEYS = [("none", "—  (not set)", 0), ("shift", "Shift", 0x10), ("ctrl", "Ctrl", 0x11), ("alt", "Alt", 0x12),
-        ("space", "Space", 0x20), ("tab", "Tab", 0x09), ("capslock", "Caps Lock", 0x14), ("backquote", "` (backtick)", 0xC0)]
-KEY_LABEL = {k: label.split("  ")[0] for k, label, _ in KEYS}
-KEY_VK = {k: vk for k, _, vk in KEYS}
 RINGS = [("Convert", "key_convert"), ("Tools", "key_tools"), ("Print", "key_print"), ("Actions", "key_actions")]
 
 DEFAULTS = {
@@ -36,10 +31,7 @@ DEFAULTS = {
     "theme": themes.DEFAULT_THEME,
     "wheel_size": 100,
     # keys (Santra: Shift converts, Command opens tools, Control file actions)
-    "key_convert": "shift",
-    "key_tools": "ctrl",
-    "key_print": "none",
-    "key_actions": "alt",
+    **keys.defaults(),
     "cycle_rings": True,
     "open_hotkey": "Ctrl+Alt+W",            # W for wheel (Ctrl+Alt+Space is often taken, e.g. by Claude)
     # sounds
@@ -65,7 +57,7 @@ DEFAULTS = {
 # allowed values: anything else stored (hand-edited registry, older versions) reads as the default
 CHOICES = {
     "wheel_size": {85, 100, 115, 130},
-    "key_convert": set(KEY_VK), "key_tools": set(KEY_VK), "key_print": set(KEY_VK), "key_actions": set(KEY_VK),
+    "key_convert": keys.Valid(), "key_tools": keys.Valid(), "key_print": keys.Valid(), "key_actions": keys.Valid(),
     "sound_volume": set(range(0, 101)),
     "sound_pack": set(sounds.PACK_KEYS),
     "output": {"next", "folder", "custom"},
@@ -384,6 +376,68 @@ class ColorButton(QPushButton):
             self.picked.emit(c)
 
 
+class KeyRecorder(QObject):
+    """Waits for one key (or mouse side/middle button) and emits its key id: '' on timeout,
+    'esc' when cancelled. Polls the global key state, like the drag watcher does."""
+    done = Signal(str)
+    TIMEOUT_MS = 6000
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.timer = QTimer(self, interval=15, timeout=self._tick)
+        self._held: set = set()
+        self._left = self.TIMEOUT_MS // 15
+
+    def _pressed_now(self) -> set:
+        if keys.IS_WIN:
+            import ctypes
+            gaks = ctypes.windll.user32.GetAsyncKeyState
+            return {vk for vk in range(3, 255) if vk not in (0x1B,) and gaks(vk) & 0x8000}
+        if keys.IS_MAC:
+            from . import platform_mac
+            return {k for k, _ in keys.choices() if k != "none" and platform_mac.key_down(k)}
+        return set()
+
+    def _escape(self) -> bool:
+        if keys.IS_WIN:
+            import ctypes
+            return bool(ctypes.windll.user32.GetAsyncKeyState(0x1B) & 0x8000)
+        if keys.IS_MAC:
+            from . import platform_mac
+            return platform_mac.escape_down()
+        return False
+
+    def start(self):
+        self._held = self._pressed_now()          # keys already down (e.g. the mouse) don't count
+        self.timer.start()
+
+    def _finish(self, value: str):
+        self.timer.stop()
+        self.done.emit(value)
+
+    def _tick(self):
+        if self._escape():
+            return self._finish("esc")
+        now = self._pressed_now()
+        new = now - self._held
+        self._held &= now                          # released keys may be pressed again
+        if new:
+            return self._finish(self._pick(new))
+        self._left -= 1
+        if self._left <= 0:
+            self._finish("")
+
+    @staticmethod
+    def _pick(new: set) -> str:
+        if not keys.IS_WIN:
+            return sorted(new)[0]
+        for vk, k in ((0x10, "shift"), (0x11, "ctrl"), (0x12, "alt")):
+            if vk in new:                          # Shift/Ctrl/Alt also report a left/right code
+                return k
+        vk = min(new)
+        return next((k for k, code in keys.WIN_VK.items() if code == vk and k != "none"), f"vk:{vk}")
+
+
 class SettingsWindow(GlassWindow):
     changed = Signal()
     PAGES = ("Appearance", "Keys", "Sounds", "Saving", "Behaviour")
@@ -413,11 +467,24 @@ class SettingsWindow(GlassWindow):
         self.reset_btn = QPushButton("Reset all settings")
         self.reset_btn.clicked.connect(self._reset)
         foot.addWidget(self.reset_btn)
-        done = QPushButton("Done")
-        done.setObjectName("primary")
-        done.clicked.connect(self.close)
-        foot.addWidget(done)
+        self.dirty_label = QLabel("Unsaved changes")
+        self.dirty_label.setObjectName("dim")
+        self.dirty_label.hide()
+        foot.addWidget(self.dirty_label)
+        self.cancel_btn = QPushButton("Cancel")
+        self.cancel_btn.setToolTip("Close and put everything back as it was (Esc)")
+        self.cancel_btn.clicked.connect(self.close)
+        foot.addWidget(self.cancel_btn)
+        self.save_btn = QPushButton("Save")
+        self.save_btn.setObjectName("primary")
+        self.save_btn.setToolTip("Keep these settings (Ctrl+S)")
+        self.save_btn.clicked.connect(self.save)
+        foot.addWidget(self.save_btn)
         self.body.addLayout(foot)
+        # changes preview live; closing without Save puts back this snapshot
+        self._snapshot = self._take_snapshot()
+        self._saved = False
+        self.changed.connect(lambda: self.dirty_label.setVisible(self._take_snapshot() != self._snapshot))
         self._build()
         self.show_page(0)
 
@@ -442,6 +509,7 @@ class SettingsWindow(GlassWindow):
                                  "{ background: transparent; border: none; }")
             scroll.setWidget(page)
             self.stack.addWidget(scroll)
+        glass.round_popups(self)
 
     def show_page(self, i: int):
         self.stack.setCurrentIndex(i)
@@ -451,6 +519,59 @@ class SettingsWindow(GlassWindow):
     def _save(self, key, value):
         self.s.set(key, value)
         self.changed.emit()
+
+    # ------------------------------------------------------------ save / cancel
+    def _take_snapshot(self) -> tuple:
+        q = self.s.q
+        values = {k: q.value(k) for k in q.allKeys()}
+        system = (None, None)
+        try:
+            system = (autostart_enabled(), context_menu_enabled())
+        except Exception:
+            pass
+        return values, system
+
+    def save(self):
+        self.s.q.sync()
+        self._saved = True
+        self.close()
+
+    def revert(self):
+        """Put every setting (and start-with-Windows / the right-click entry) back as it was."""
+        values, system = self._snapshot
+        q = self.s.q
+        for k in q.allKeys():
+            if k not in values:
+                q.remove(k)
+        for k, v in values.items():
+            q.setValue(k, v)
+        q.sync()
+        self.s.apply()
+        try:
+            if system[0] is not None and autostart_enabled() != system[0]:
+                set_autostart(system[0])
+            if system[1] is not None and context_menu_enabled() != system[1]:
+                set_context_menu(system[1])
+        except Exception:
+            pass
+        self.changed.emit()
+
+    def keyPressEvent(self, e):
+        if e.key() == Qt.Key_S and e.modifiers() & Qt.ControlModifier:
+            self.save()
+            return
+        if e.key() == Qt.Key_Escape:
+            self.close()
+            return
+        super().keyPressEvent(e)
+
+    def closeEvent(self, e):
+        if not self._saved and self._take_snapshot() != self._snapshot:
+            self.revert()
+        rec = getattr(self, "_recorder", None)
+        if rec is not None:
+            rec.timer.stop()
+        super().closeEvent(e)
 
     def _section(self, lay, text):
         lab = QLabel(text.upper())
@@ -797,11 +918,21 @@ class SettingsWindow(GlassWindow):
         self._section(lay, "While dragging a file, tap…")
         g = self._grid()
         self.key_boxes = {}
+        self.record_btns = {}
         for r, (ring, setting) in enumerate(RINGS):
             g.addWidget(QLabel(f"{ring} wheel"), r, 0)
-            box = combo([(k, label) for k, label, _ in KEYS], self.s.get(setting))
+            row = QHBoxLayout()
+            box = QComboBox()
+            self._fill_key_box(box, self.s.get(setting))
             box.currentIndexChanged.connect(lambda _=0, s=setting, b=box: self._key_changed(s, b))
-            g.addWidget(box, r, 1)
+            row.addWidget(box, 1)
+            if keys.IS_WIN or keys.IS_MAC:
+                rec = QPushButton("Record…")
+                rec.setToolTip("Press any key (or a mouse side button) to use it for this wheel")
+                rec.clicked.connect(lambda _=False, s=setting: self._record_key(s))
+                row.addWidget(rec)
+                self.record_btns[setting] = rec
+            g.addLayout(row, r, 1)
             self.key_boxes[setting] = box
         lay.addLayout(g)
         self.key_msg = hint("")
@@ -811,9 +942,14 @@ class SettingsWindow(GlassWindow):
         self.cycle.setChecked(self.s.get("cycle_rings"))
         self.cycle.toggled.connect(lambda on: self._save("cycle_rings", on))
         lay.addWidget(self.cycle)
-        lay.addWidget(hint("Defaults follow Santra: Shift converts, Ctrl (Command on a Mac) opens tools, "
-                           "Alt (Control on a Mac) opens file actions. Release the key and keep dragging; the "
-                           "wheel stays open until you drop or press Esc."))
+        if keys.IS_MAC:
+            lay.addWidget(hint("Defaults follow Santra: Shift converts, Command opens tools, Control opens file "
+                               "actions. Fn (Globe), Option, F-keys and extra mouse buttons work too."))
+        else:
+            lay.addWidget(hint("Defaults follow Santra: Shift converts, Ctrl opens tools, Alt opens file actions. "
+                               "Any key works, including left/right modifiers, F1–F24 and mouse side buttons; "
+                               "use Record… for keys not in the list. Fn can't be used: on PC keyboards it is "
+                               "handled inside the keyboard and Windows never sees it."))
 
         self._section(lay, "Without dragging")
         g2 = self._grid()
@@ -835,25 +971,64 @@ class SettingsWindow(GlassWindow):
         lay.addWidget(hint("Arrow keys choose a slice · Enter or Space applies · 1–9 pick a slice directly · "
                            "Tab switches wheel · Esc cancels"))
 
+    @staticmethod
+    def _fill_key_box(box: QComboBox, value: str):
+        box.blockSignals(True)
+        box.clear()
+        for k, label in keys.choices():
+            box.addItem(label, k)
+        if box.findData(value) < 0 and keys.valid(value):
+            box.addItem(f"{keys.label(value)}  (recorded)", value)
+        box.setCurrentIndex(max(0, box.findData(value)))
+        box.blockSignals(False)
+
     def _key_changed(self, setting, box):
         value = box.currentData()
         if value != "none":
             for other, b in self.key_boxes.items():
                 if other != setting and self.s.get(other) == value:
                     ring = next(r for r, s in RINGS if s == other)
-                    self.key_msg.setText(f"{KEY_LABEL[value]} already opens the {ring} wheel; "
+                    self.key_msg.setText(f"{keys.label(value)} already opened the {ring} wheel; "
                                          f"that one is now unset.")
                     self.s.set(other, "none")
-                    b.blockSignals(True)
-                    b.setCurrentIndex(0)
-                    b.blockSignals(False)
+                    self._fill_key_box(b, "none")
         if not any(self.s.get(s) != "none" for _, s in RINGS if s != setting) and value == "none":
             self.key_msg.setText("At least one wheel needs a key.")
-            box.blockSignals(True)
-            box.setCurrentIndex([k for k, _, _ in KEYS].index(self.s.get(setting)))
-            box.blockSignals(False)
+            self._fill_key_box(box, self.s.get(setting))
             return
+        note = keys.NOTES.get(value, "")
+        if note and not self.key_msg.text().endswith("unset."):
+            self.key_msg.setText(note)
+        elif not note and value != "none" and "already" not in self.key_msg.text():
+            self.key_msg.setText("")
         self._save(setting, value)
+
+    def _record_key(self, setting):
+        """Wait up to 6 s for any key or mouse side button, read straight from the keyboard state
+        (so keys Qt never reports, like the Windows key or AltGr, work too)."""
+        btn = self.record_btns[setting]
+        if getattr(self, "_recorder", None):
+            return
+        btn.setText("Press a key…")
+        self.key_msg.setText("Press the key you want to use (Esc cancels).")
+        rec = self._recorder = KeyRecorder(self)
+
+        def finished(value: str):
+            self._recorder = None
+            btn.setText("Record…")
+            if value == "":
+                self.key_msg.setText("No key was detected. Fn and some laptop keys (brightness, volume) are "
+                                     "handled by the keyboard itself and can't be used.")
+                return
+            if value == "esc":
+                self.key_msg.setText("")
+                return
+            box = self.key_boxes[setting]
+            self._fill_key_box(box, value)
+            box.setCurrentIndex(box.findData(value))
+            self._key_changed(setting, box)
+        rec.done.connect(finished)
+        rec.start()
 
     def _hotkey_changed(self):
         seq = self.hotkey.keySequence().toString(QKeySequence.PortableText)
