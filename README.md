@@ -130,6 +130,10 @@ From the [latest release](https://github.com/Aditya-Prakash-047/ShiftWheel/relea
 
 The app isn't code-signed, so SmartScreen may warn on first launch: **More info → Run anyway**.
 
+### Updates
+
+ShiftWheel updates itself like other desktop apps: once a day (or **Check for updates…** in the tray menu, or **Settings → Behaviour → Updates → Check now**) it looks at the latest GitHub release. A card offers **Update now**, **What's new** or **Skip**. Update now downloads the right file for this copy (installer, portable .exe or Mac .dmg), checks its size and the SHA-256 GitHub publishes, waits for running jobs to finish, then installs in the background and restarts. Settings, themes and sounds are kept. Automatic checks can be turned off.
+
 ### macOS 11+
 
 **ShiftWheel-mac-apple-silicon.dmg** or **ShiftWheel-mac-intel.dmg** from the release (built and self-tested by **Actions → Build macOS app**): open it and drag ShiftWheel to Applications, or run `install-mac.sh`. It lives in the menu bar. Allow **Screen Recording** in System Settings for the Liquid glass theme to show what's behind it.

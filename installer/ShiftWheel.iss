@@ -1,7 +1,7 @@
 ; Inno Setup script — per-user install, no admin rights needed.
 #define AppVersion GetEnv("DS_VERSION")
 #if AppVersion == ""
-  #define AppVersion "1.0.0"
+  #define AppVersion "1.1.0"
 #endif
 
 [Setup]
@@ -27,6 +27,10 @@ RestartApplications=no
 Name: "autostart"; Description: "Start ShiftWheel when I sign in to Windows"; Flags: checkedonce
 Name: "contextmenu"; Description: "Add ""ShiftWheel"" to the right-click menu for files"; Flags: checkedonce
 Name: "desktopicon"; Description: "Create a desktop shortcut"; Flags: unchecked
+
+[InstallDelete]
+; an update replaces the bundled libraries wholesale (never a mix of two versions)
+Type: filesandordirs; Name: "{app}\_internal"
 
 [Files]
 Source: "..\dist\ShiftWheel\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion

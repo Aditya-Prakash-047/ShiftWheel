@@ -226,6 +226,7 @@ class ShiftWheelApp(QObject):
         m.addAction("Open a file…", self.open_dialog)
         m.addSeparator()
         m.addAction("Settings…", self.open_settings)
+        m.addAction("Check for updates…", lambda: self.updates.check(quiet=False))
         m.addAction("How to use", self.show_welcome)
         m.addAction("About / credits", lambda: QDesktopServices.openUrl(QUrl(REPO_URL)))
         m.addSeparator()
@@ -238,6 +239,9 @@ class ShiftWheelApp(QObject):
         self.tray.setContextMenu(m)
         self.tray.activated.connect(self._tray_click)
         self.tray.show()
+        from .updatectl import UpdateController
+        self.updates = UpdateController(self)
+        self.updates.start()
 
     def apply_look(self):
         """Theme (with its customisations), light/dark and size → the wheel, every window,
@@ -751,7 +755,7 @@ class ShiftWheelApp(QObject):
         self.menu.activateWindow()
 
     def open_settings(self):
-        w = SettingsWindow(self.settings, self.sounds)
+        w = SettingsWindow(self.settings, self.sounds, self.updates)
         w.changed.connect(self._settings_changed)
         self.open_window(w)
 

@@ -70,8 +70,8 @@ if IS_MAC:
         info_plist={
             "CFBundleName": "ShiftWheel",
             "CFBundleDisplayName": "ShiftWheel",
-            "CFBundleShortVersionString": "1.0.0",
-            "CFBundleVersion": "1.0.0",
+            "CFBundleShortVersionString": "1.1.0",
+            "CFBundleVersion": "1.1.0",
             "LSUIElement": True,                 # menu-bar app, no Dock icon
             "LSMinimumSystemVersion": "11.0",
             "NSHighResolutionCapable": True,
