@@ -1,0 +1,73 @@
+name: Build macOS app
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+    paths-ignore: ["**.md", "docs/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-latest           # Apple silicon
+            asset: ShiftWheel-mac-apple-silicon.dmg
+          - runner: macos-15-intel
+            asset: ShiftWheel-mac-intel.dmg
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller pytest
+
+      - name: Run tests
+        run: python -m pytest -q
+        env:
+          QT_QPA_PLATFORM: offscreen
+
+      - name: Build ShiftWheel.app
+        run: pyinstaller ShiftWheel.spec --noconfirm
+
+      - name: Self-test the app (FFmpeg, OCR models, OpenCV, printing, every window)
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          set +e
+          dist/ShiftWheel.app/Contents/MacOS/ShiftWheel --selftest
+          code=$?
+          tail -n 40 "$HOME/.local/share/ShiftWheel/log.txt" 2>/dev/null || true
+          exit $code
+
+      - name: Make the disk image
+        run: |
+          hdiutil create -volname ShiftWheel -srcfolder dist/ShiftWheel.app -ov -format UDZO "dist/${{ matrix.asset }}"
+          du -sh dist/ShiftWheel.app "dist/${{ matrix.asset }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: dist/${{ matrix.asset }}
+
+      - name: Add to the release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1 || gh release create "${GITHUB_REF_NAME}" --generate-notes || true
+          gh release upload "${GITHUB_REF_NAME}" "dist/${{ matrix.asset }}" --clobber

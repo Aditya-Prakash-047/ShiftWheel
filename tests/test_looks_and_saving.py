@@ -148,7 +148,7 @@ def test_settings_window_builds_and_saves(store):
     assert store.look().shape.outline == "square"
     w._color("slices", themes.hexa("#123456"))
     assert store.custom("ember")["colors"] == {"slices": "#123456"}
-    w.key_boxes["key_tools"].setCurrentIndex([k for k, _, _ in S.KEYS].index("shift"))
+    w.key_boxes["key_tools"].setCurrentIndex(w.key_boxes["key_tools"].findData("shift"))
     assert store.get("key_tools") == "shift" and store.get("key_convert") == "none"   # no duplicates
     w.ask.setChecked(True)
     assert store.get("ask_name") is True

@@ -53,7 +53,60 @@ def _walk(paths):
             yield p, p.name
 
 
-def zip_paths(paths: list, fmt: str = "ZIP") -> Path:
+# (key, name, what it means) · ZIP deflate level / 7z LZMA2 preset per level
+ARCHIVE_LEVELS = [
+    ("store", "Store", "No compression · instant, for photos and videos that are already compressed"),
+    ("fast", "Fast", "Quick, a little bigger"),
+    ("normal", "Normal", "The usual balance of size and speed"),
+    ("maximum", "Maximum", "Smallest archive, slower"),
+]
+_ZIP_LEVEL = {"store": 0, "fast": 1, "normal": 6, "maximum": 9}
+_7Z_PRESET = {"store": 0, "fast": 1, "normal": 5, "maximum": 9}
+# already compressed: deflate/LZMA can't shrink these much
+PACKED = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif", ".avif", ".gif", ".mp4", ".mov", ".mkv", ".webm",
+          ".avi", ".m4a", ".mp3", ".aac", ".ogg", ".opus", ".flac", ".zip", ".7z", ".rar", ".gz", ".xz", ".bz2",
+          ".docx", ".xlsx", ".pptx", ".odt", ".ods", ".odp", ".epub", ".pdf", ".jar", ".apk"}
+
+
+def packed_share(paths) -> float:
+    """Share of the bytes that are already-compressed formats (0..1)."""
+    total = packed = 0
+    for full, _ in _walk(paths):
+        n = full.stat().st_size
+        total += n
+        if full.suffix.lower() in PACKED:
+            packed += n
+    return packed / total if total else 0.0
+
+
+def estimate_archive(paths, fmt: str = "ZIP", level: str = "normal", sample_bytes: int = 6_000_000) -> int:
+    """Expected archive size: compress up to `sample_bytes` taken evenly from every file and
+    scale each file's ratio to its size (plus per-entry overhead)."""
+    import lzma
+    import zlib
+    items = list(_walk(paths))
+    total = sum(f.stat().st_size for f, _ in items) or 1
+    out = 0
+    for full, arc in items:
+        size = full.stat().st_size
+        take = max(4096, int(sample_bytes * size / total)) if size else 0
+        overhead = 120 + 2 * len(arc.encode("utf-8"))
+        if level == "store" or not size:
+            out += size + overhead
+            continue
+        with open(full, "rb") as f:
+            chunk = f.read(min(size, take))
+        if fmt.upper() == "7Z":
+            c = len(lzma.compress(chunk, format=lzma.FORMAT_RAW,
+                                  filters=[{"id": lzma.FILTER_LZMA2, "preset": _7Z_PRESET[level]}]))
+        else:
+            c = len(zlib.compress(chunk, _ZIP_LEVEL[level]))
+        ratio = min(1.0, c / max(1, len(chunk)))
+        out += int(size * ratio) + overhead
+    return out
+
+
+def zip_paths(paths: list, fmt: str = "ZIP", level: str = "normal") -> Path:
     paths = [Path(p) for p in paths]
     first = paths[0]
     name = first.name if first.is_dir() else first.stem
@@ -67,7 +120,8 @@ def zip_paths(paths: list, fmt: str = "ZIP") -> Path:
     try:
         if fmt.upper() == "7Z":
             import py7zr
-            with py7zr.SevenZipFile(tmp, "w") as z:
+            filters = [{"id": py7zr.FILTER_COPY}] if level == "store" else                 [{"id": py7zr.FILTER_LZMA2, "preset": _7Z_PRESET.get(level, 5)}]
+            with py7zr.SevenZipFile(tmp, "w", filters=filters) as z:
                 for full, arc in items:
                     z.write(full, arc)
         elif fmt.upper() in ("TAR", "GZIP"):
@@ -75,7 +129,9 @@ def zip_paths(paths: list, fmt: str = "ZIP") -> Path:
                 for full, arc in items:
                     t.add(full, arc)
         else:
-            with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as z:
+            method = zipfile.ZIP_STORED if level == "store" else zipfile.ZIP_DEFLATED
+            with zipfile.ZipFile(tmp, "w", method, compresslevel=None if level == "store"
+                                 else _ZIP_LEVEL.get(level, 6)) as z:
                 for full, arc in items:
                     z.write(full, arc)
         os.replace(tmp, out)

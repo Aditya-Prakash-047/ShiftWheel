@@ -162,6 +162,34 @@ def file_size(path: str | Path) -> int:
         return 0
 
 
+# ---------------------------------------------------------------- lazy imports
+class LazyModule:
+    """Stands in for a heavy module (PyMuPDF, OpenCV) and imports it on first use, so the app
+    starts fast and stays small until a tool that needs it runs. `names`: first one that imports."""
+
+    def __init__(self, *names: str, on_load=None):
+        self._names, self._mod, self._on_load = names, None, on_load
+
+    def _load(self):
+        if self._mod is None:
+            import importlib
+            err = None
+            for n in self._names:
+                try:
+                    self._mod = importlib.import_module(n)
+                    break
+                except ImportError as e:
+                    err = e
+            if self._mod is None:
+                raise err or ImportError(self._names[0])
+            if self._on_load:
+                self._on_load(self._mod)
+        return self._mod
+
+    def __getattr__(self, attr):
+        return getattr(self._load(), attr)
+
+
 # ---------------------------------------------------------------- background job lifetime
 # QThreadPool runs a QRunnable in C++, but the Python object (and the QObject carrying its
 # signals) can be garbage-collected while it's still running: results then never arrive,

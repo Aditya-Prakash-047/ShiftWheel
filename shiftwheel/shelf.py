@@ -7,7 +7,7 @@ from pathlib import Path
 from PySide6.QtCore import QMimeData, QPoint, QSize, Qt, QUrl, Signal
 from PySide6.QtGui import QDrag, QGuiApplication
 from PySide6.QtWidgets import (QFileIconProvider, QHBoxLayout, QLabel, QPushButton, QScrollArea, QToolButton,
-                               QVBoxLayout, QWidget)
+                               QWidget)
 from PySide6.QtCore import QFileInfo
 
 from .window import GlassWindow

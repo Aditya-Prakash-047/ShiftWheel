@@ -73,9 +73,13 @@ class ShiftWheelWatcher(QObject):
             self._mac = platform_linux if platform_linux.available() else None
         self.timer = QTimer(self, interval=15, timeout=self._tick)
 
-    def set_bindings(self, ring_keys: dict[str, str], vks: dict[str, int]):
-        """{ring: key name} plus {key name: virtual-key code}."""
-        self.bindings = {ring: (key, vks[key]) for ring, key in ring_keys.items() if vks.get(key)}
+    def set_bindings(self, ring_keys: dict[str, str], vks: dict[str, int] | None = None):
+        """{ring: key id} (see keys.py); Windows codes come from keys.vk unless `vks` is given."""
+        from . import keys
+        code = (lambda k: vks.get(k, 0)) if vks is not None else keys.vk
+        self.bindings = {ring: (key, code(key) or (1 if self._mac is not None else 0))
+                         for ring, key in ring_keys.items() if key != "none"}
+        self.bindings = {r: kv for r, kv in self.bindings.items() if kv[1]}
 
     def set_key(self, name: str):
         """One key for the first wheel (older API)."""
@@ -94,8 +98,7 @@ class ShiftWheelWatcher(QObject):
         (e.g. the moment the menu opens), which sampling the key alone would miss."""
         if self._mac is not None:
             m = self._mac
-            keys = {ring: (bool(m.key_down(name)) if name in ("shift", "ctrl", "alt") else False, False)
-                    for ring, (name, _) in self.bindings.items()}
+            keys = {ring: (bool(m.key_down(name)), False) for ring, (name, _) in self.bindings.items()}
             return m.left_button_down(), m.escape_down(), keys
         keys = {}
         for ring, (_, vk) in self.bindings.items():

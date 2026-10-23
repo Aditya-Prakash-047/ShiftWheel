@@ -32,8 +32,20 @@ def left_button_down() -> bool:
     return bool(OK and AppKit.NSEvent.pressedMouseButtons() & 1)
 
 
+def _keycode_down(code: int) -> bool:
+    try:
+        return bool(Quartz.CGEventSourceKeyState(Quartz.kCGEventSourceStateCombinedSessionState, code))
+    except Exception:
+        return False
+
+
 def key_down(name: str) -> bool:
-    return bool(OK and AppKit.NSEvent.modifierFlags() & KEY_FLAGS.get(name, SHIFT))
+    """Any key from keys.choices(): modifiers (incl. Command and Fn), keys by keycode, mouse buttons."""
+    if not OK:
+        return False
+    from .keys import mac_down
+    return mac_down(name, int(AppKit.NSEvent.modifierFlags()), _keycode_down,
+                    int(AppKit.NSEvent.pressedMouseButtons()))
 
 
 def escape_down() -> bool:

@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 
 BUTTON1, SHIFT, CONTROL, MOD1 = 1 << 8, 1 << 0, 1 << 2, 1 << 3
-KEY_MASKS = {"shift": SHIFT, "ctrl": CONTROL, "alt": MOD1}
+KEY_MASKS = {"shift": SHIFT, "ctrl": CONTROL, "alt": MOD1, "win": 1 << 6}     # Mod4 = Super
 
 
 class _X11:
@@ -99,7 +99,7 @@ def left_button_down() -> bool:
 
 
 def key_down(name: str) -> bool:
-    return bool(x11().mask() & KEY_MASKS.get(name, SHIFT))
+    return bool(x11().mask() & KEY_MASKS.get(name, 0))
 
 
 def escape_down() -> bool:

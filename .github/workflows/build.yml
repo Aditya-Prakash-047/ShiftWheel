@@ -97,4 +97,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
-        run: gh release create "${GITHUB_REF_NAME}" dist/ShiftWheel-Setup.exe dist/ShiftWheel.exe --generate-notes
+        run: |
+          gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1 || gh release create "${GITHUB_REF_NAME}" --generate-notes || true
+          gh release upload "${GITHUB_REF_NAME}" dist/ShiftWheel-Setup.exe dist/ShiftWheel.exe --clobber

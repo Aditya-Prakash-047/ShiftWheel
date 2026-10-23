@@ -17,7 +17,7 @@ import os
 import re
 import sys
 import zipfile
-from dataclasses import dataclass, field, fields, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from PySide6.QtGui import QColor

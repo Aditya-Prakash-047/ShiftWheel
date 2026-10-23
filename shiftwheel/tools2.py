@@ -9,7 +9,7 @@ from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QTimer
 from PySide6.QtGui import QColor, QIcon, QImage, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (QAbstractItemView, QColorDialog, QComboBox, QDoubleSpinBox, QFileDialog,
                                QGridLayout, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
-                               QPushButton, QSpinBox, QVBoxLayout)
+                               QPushButton, QSpinBox)
 
 from . import extras as X
 from . import media as M
@@ -211,6 +211,7 @@ class OrganizePdfWindow(ToolWindow):
 
 # ================================================================ VIDEO: CROP
 class VideoCropWindow(ToolWindow):
+    batch = True
     tool_name = "Crop"
     RATIOS = [("Free", None), ("1:1", 1.0), ("16:9", 16 / 9), ("9:16", 9 / 16), ("4:5", 0.8), ("4:3", 4 / 3)]
 
@@ -253,9 +254,27 @@ class VideoCropWindow(ToolWindow):
         self.dims.setText(f"Output {w // 2 * 2} × {h // 2 * 2} px · the sound is kept")
 
     def save(self):
-        box, path = self._box(), self.path
-        self.run(lambda progress=None: [X.crop_video(path, *box, progress=progress)], "Cropping video…",
-                 f"{box[2]}×{box[3]}")
+        box, first, W, H = self._box(), self.path, self.info.width, self.info.height
+        rel = (box[0] / W, box[1] / H, box[2] / W, box[3] / H)
+
+        def crop(p, progress):
+            if p == first:
+                return X.crop_video(p, *box, progress=progress)
+            i = M.probe(p)       # the same area of each video, whatever its size
+            return X.crop_video(p, rel[0] * i.width, rel[1] * i.height, rel[2] * i.width, rel[3] * i.height,
+                                progress=progress)
+        self.run(_each(self.targets(), crop), "Cropping video…", f"{box[2]}×{box[3]}")
+
+
+def _each(targets, fn):
+    """Run fn(path, progress) for every file, spreading the progress bar over them."""
+    def work(progress=None):
+        outs = []
+        for i, p in enumerate(targets):
+            sub = (lambda f, i=i: progress((i + f) / len(targets))) if progress else None
+            outs.append(fn(p, sub))
+        return outs
+    return work
 
 
 # ================================================================ VIDEO / AUDIO: SPLIT
@@ -437,6 +456,7 @@ class RedactVideoWindow(ToolWindow):
 
 # ================================================================ AUDIO: CHANNELS
 class ChannelsWindow(ToolWindow):
+    batch = True
     tool_name = "Channels"
 
     def __init__(self, path, notify):
@@ -456,8 +476,8 @@ class ChannelsWindow(ToolWindow):
         self.body.addLayout(self.footer("Save", self.save))
 
     def save(self):
-        mode, l, r, path = self.mode.currentData(), self.left.value() / 100, self.right.value() / 100, self.path
-        self.run(lambda progress=None: [X.channels(path, mode, l, r, progress)], "Converting channels…",
+        mode, l, r = self.mode.currentData(), self.left.value() / 100, self.right.value() / 100
+        self.run(_each(self.targets(), lambda p, pr: X.channels(p, mode, l, r, pr)), "Converting channels…",
                  self.mode.currentText())
 
 
@@ -509,6 +529,7 @@ class BleepWindow(ToolWindow):
 
 # ================================================================ AUDIO: VISUALIZER
 class VisualizerWindow(ToolWindow):
+    batch = True
     tool_name = "Visualize"
     COLORS = ["#ff5200", "#ffffff", "#22c55e", "#3b82f6", "#ec4899", "#facc15"]
 
@@ -564,8 +585,7 @@ class VisualizerWindow(ToolWindow):
             if not self.image:
                 return
         args = dict(layout=layout, style=style, color=self.color, background=self.bg.currentData(), image=self.image)
-        path = self.path
-        self.run(lambda progress=None: [X.visualizer(path, progress=progress, **args)], "Making the video…",
+        self.run(_each(self.targets(), lambda p, pr: X.visualizer(p, progress=pr, **args)), "Making the video…",
                  f"{layout} · {style}")
 
 

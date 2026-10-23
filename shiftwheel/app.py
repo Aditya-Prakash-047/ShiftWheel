@@ -14,10 +14,10 @@ from PySide6.QtGui import (QAction, QColor, QCursor, QDesktopServices, QGuiAppli
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QFileDialog, QMenu, QSystemTrayIcon, QWidget
 
-from . import (__version__, archive, convert, extras, fileops, glass, hotkey, imaging, media, mediawin, ocr,
-               ocrwin, office, printwin, report, saveas, sounds, themes, tools, tools2)
+from . import (__version__, archive, compresswin, convert, extras, fileops, glass, hotkey, imaging, keys, media,
+               mediawin, ocr, ocrwin, office, printwin, report, saveas, sounds, themes, tools, tools2)
 from .radial import Item, RadialMenu
-from .settings import KEY_LABEL, KEY_VK, Settings, SettingsWindow, WelcomeWindow
+from .settings import Settings, SettingsWindow, WelcomeWindow
 from .toasts import ToastStack
 from .trigger import ShiftWheelWatcher
 from .util import UserError, call_with_progress, category, file_size, human_size, keep, release
@@ -218,6 +218,7 @@ class ShiftWheelApp(QObject):
         self.tray = QSystemTrayIcon(make_tray_icon(), self)
         self.tray.setToolTip(f"{APP_NAME} — press {self.trigger_label()} while dragging a file")
         m = QMenu()
+        glass.round_popup(m)
         m.setStyleSheet(glass.QSS)
         self.act_enabled = QAction("Enabled", m, checkable=True, checked=True)
         self.act_enabled.toggled.connect(lambda on: setattr(self.watcher, "enabled", on))
@@ -243,14 +244,18 @@ class ShiftWheelApp(QObject):
         the notifications, the tray menu and the sounds."""
         s = self.settings
         look = s.look()
-        self.menu.set_look(look, s.get("wheel_size") / 100)
-        glass.set_mode(look.dark, look.accent if s.custom(s.get("theme")).get("accent") else None)
-        glass.set_ui(look.ui, look.dark)
-        self.tray_menu.setStyleSheet(glass.QSS)
+        accent = look.accent if s.custom(s.get("theme")).get("accent") else None
+        sig = (look, s.get("wheel_size"), accent.name() if accent is not None else None)
+        if sig != getattr(self, "_look_sig", None):      # called on every wheel open: only redo on change
+            self._look_sig = sig
+            self.menu.set_look(look, s.get("wheel_size") / 100)
+            glass.set_mode(look.dark, accent)
+            glass.set_ui(look.ui, look.dark)
+            self.tray_menu.setStyleSheet(glass.QSS)
         s.configure_sounds(self.sounds)
 
     def _apply_keys(self):
-        self.watcher.set_bindings(self.settings.ring_keys(), KEY_VK)
+        self.watcher.set_bindings(self.settings.ring_keys())
         self.watcher.excluded = self.settings.excluded_apps()
 
     def _ring_key_label(self, ring: str) -> str:
@@ -258,7 +263,7 @@ class ShiftWheelApp(QObject):
         cur = self.menu.ring_names[self.menu.ring_idx] if self.menu.ring_names else ""
         if key is None and self.settings.get("cycle_rings"):
             key = self.settings.ring_keys().get(cur)       # the same key again cycles
-        return KEY_LABEL.get(key, "") if key else ""
+        return keys.label(key) if key else ""
 
     def _drag_popup(self, pos, ring: str = ""):
         self.apply_look()        # picks up a Windows accent/mode change since last time
@@ -287,8 +292,8 @@ class ShiftWheelApp(QObject):
             self.sounds.play("open")
 
     def trigger_label(self) -> str:
-        keys = self.settings.ring_keys()
-        return KEY_LABEL.get(keys.get("Convert") or next(iter(keys.values()), "shift"), "Shift")
+        bound = self.settings.ring_keys()
+        return keys.label(bound.get("Convert") or next(iter(bound.values()), "shift"))
 
     # ------------------------------------------------------------ IPC
     def _ipc(self):
@@ -417,7 +422,7 @@ class ShiftWheelApp(QObject):
             return
         if kind == "pack":
             allp = self._all_paths
-            self.submit("tool:Zip", allp, lambda: [archive.zip_paths(allp, name)], "Compressing…")
+            self._open_tool(name, lambda ps, n: compresswin.archive_window(ps, n, name), allp)
             return
         if kind == "archive":
             if name == "Extract":
@@ -483,15 +488,17 @@ class ShiftWheelApp(QObject):
             if name == "Merge":
                 self.submit("tool:Merge", paths, lambda: [imaging.merge_pdfs(paths)], "Merging…")
             elif name == "Metadata":
-                self.open_window(tools.MetadataWindow(paths[0], self.notify, is_pdf=True))
+                self.open_window(tools.MetadataWindow(paths, self.notify, is_pdf=True))
             elif name == "Protect":
-                self.open_window(tools.ProtectWindow(paths[0], self.notify))
+                self.open_window(tools.ProtectWindow(paths, self.notify))
+            elif name == "Compress":
+                self._open_tool(name, compresswin.pdf_window, paths)
             else:
-                fns = {"Compress": lambda p: [imaging.compress_pdf(p)], "Split": imaging.split_pdf,
+                fns = {"Split": imaging.split_pdf,
                        "Rotate": lambda p: [imaging.rotate_pdf(p)], "Extract": imaging.extract_pdf_images}
                 f = fns[name]
                 self.submit(f"tool:{name}", paths, lambda: [o for p in paths for o in f(p)],
-                            {"Compress": "Compressing…", "Split": "Splitting…", "Rotate": "Rotating…",
+                            {"Split": "Splitting…", "Rotate": "Rotating…",
                              "Extract": "Extracting images…"}[name])
             return
         windows = {"Crop": tools.CropWindow, "Add BG": tools.AddBgWindow, "Annotate": tools.AnnotateWindow,
@@ -502,7 +509,8 @@ class ShiftWheelApp(QObject):
             elif name == "Resize":
                 self.open_window(tools.ResizeWindow(paths, self.notify))
             else:
-                self.open_window(windows[name](paths[0], self.notify))
+                cls = windows[name]
+                self.open_window(cls(paths if cls.batch else paths[0], self.notify))
         except UserError as e:
             self.toasts.error(f"Couldn't open {name}", str(e))
         except Exception as e:  # noqa: BLE001
@@ -539,25 +547,55 @@ class ShiftWheelApp(QObject):
             self.submit(f"tool:{name}", paths, work, verb)
         elif name == "Compress":
             if cat == "audio":
-                self.submit("tool:Compress", paths,
-                            lambda progress=None: [media.compress_audio(p, 96, progress) for p in paths],
-                            "Compressing audio…")
+                self._open_tool(name, compresswin.audio_window, paths)
             else:
                 self._open_tool(name, mediawin.VideoCompressWindow, paths)
         elif name in ("Trim", "GIF", "Snapshot"):
             mode = {"Trim": "trim", "GIF": "gif", "Snapshot": "snapshot"}[name]
             self._open_tool(name, lambda ps, n: mediawin.TrimWindow(ps[0], n, mode), paths)
         elif name == "Speed":
-            self._open_tool(name, lambda ps, n: mediawin.SpeedWindow(ps[0], n), paths)
+            self._open_tool(name, mediawin.SpeedWindow, paths)
         elif name in ("Crop", "Split", "Redact", "Metadata", "Channels", "Bleep", "Visualize"):
             cls = {"Crop": tools2.VideoCropWindow, "Split": tools2.SplitWindow, "Redact": tools2.RedactVideoWindow,
                    "Metadata": tools2.MetadataEditWindow, "Channels": tools2.ChannelsWindow,
                    "Bleep": tools2.BleepWindow, "Visualize": tools2.VisualizerWindow}[name]
-            self._open_tool(name, lambda ps, n: cls(ps[0], n), paths)
+            self._open_tool(name, lambda ps, n: cls(ps if cls.batch else ps[0], n), paths)
         elif name == "Silence":
             self.submit("tool:Silence", paths,
                         lambda progress=None: [extras.trim_silence(p, progress=progress) for p in paths],
                         "Trimming silence…")
+
+    def _share(self, paths: list[str]):
+        """Windows' share sheet for every dropped file, opened where the drop happened."""
+        try:
+            if sys.platform == "win32":
+                from . import winshare
+                host = getattr(self, "_share_host", None)
+                if host is None:
+                    # an invisible 1×1 window: the share sheet must belong to a window of ours
+                    host = self._share_host = QWidget(None, Qt.FramelessWindowHint | Qt.Tool | Qt.WindowStaysOnTopHint)
+                    host.setAttribute(Qt.WA_TranslucentBackground)
+                    host.setWindowOpacity(0.0)
+                    host.resize(1, 1)
+                    self._sharer = None
+                host.move(QCursor.pos())
+                host.show()
+                if self._sharer is None:
+                    self._sharer = winshare.Sharer(int(host.winId()))
+                self._sharer.share(paths)
+                QTimer.singleShot(2500, self._share_check)
+            else:
+                fileops.reveal(paths[0])
+                self.toasts.info("Shown in Finder" if sys.platform == "darwin" else "Shown in the file manager",
+                                 "Use Share there to send it")
+        except Exception as e:  # noqa: BLE001
+            print(f"share failed: {e!r}", flush=True)
+            self.toasts.error("Couldn't open Share", friendly_error(e))
+
+    def _share_check(self):
+        err = getattr(getattr(self, "_sharer", None), "error", "")
+        if err:
+            self.toasts.error("Couldn't share", err)
 
     def run_file_action(self, name: str, paths: list[str]):
         if name == "Copy path":
@@ -582,10 +620,9 @@ class ShiftWheelApp(QObject):
         elif name == "Terminal":
             fileops.open_terminal(paths[0])
         elif name == "Share":
-            try:
-                fileops.share(paths[0])
-            except Exception as e:  # noqa: BLE001
-                self.toasts.error("Couldn't open Share", friendly_error(e))
+            # not inside the drop: Explorer's drag is an input-synchronous COM call, and the shell
+            # refuses calls made during it (RPC_E_CANTCALLOUT_ININPUTSYNCCALL)
+            QTimer.singleShot(200, lambda: self._share(paths))
         elif name == "Float":
             from .shelf import FloatShelf
             shelf = getattr(self, "_shelf", None)
@@ -977,6 +1014,19 @@ def selftest_extras(d: Path, png: Path, pdf: Path) -> None:
     docs.pdf_to_pptx(pdf)
     extras.collage([Image.new("RGB", (40, 30), "red")] * 3, size=(200, 200))
     print("themes/sounds/docs OK")
+
+    # keys, compression levels with size estimates, batch windows, share plumbing
+    assert keys.valid("f8") and keys.label("shift")
+    for level, *_ in imaging.PDF_LEVELS:
+        assert imaging.estimate_pdf(pdf, level)[0] > 0
+    assert archive.estimate_archive([csvp], "ZIP", "maximum") > 0
+    for w in (compresswin.pdf_window([str(pdf)], n), compresswin.archive_window([str(csvp)], n, "7Z"),
+              tools.EditWindow([str(png), str(png)], n)):
+        w.close()
+    if sys.platform == "win32":
+        from . import winshare
+        assert str(winshare.IID_IIterable_IStorageItem) == "bb8b8418-65d1-544b-b083-6d172f568c73"
+    print("keys/compress/batch OK")
 
     for w in (printwin.IDCardWindow([str(cp)], n), printwin.PassportWindow([str(png)], n),
               printwin.ScanWindow([str(cp)], n), printwin.PrintWindow([str(pdf)], n),

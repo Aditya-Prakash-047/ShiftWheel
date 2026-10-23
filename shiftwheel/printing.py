@@ -16,13 +16,14 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageOps
 
-try:
-    import cv2  # type: ignore
-    import numpy as np
-    CV_OK = True
-except Exception:  # pragma: no cover
-    CV_OK = False
-    import numpy as np  # numpy is a hard dependency anyway
+import importlib.util
+
+import numpy as np
+
+from .util import LazyModule
+
+CV_OK = importlib.util.find_spec("cv2") is not None
+cv2 = LazyModule("cv2")      # imported on the first scan / ID card, not at start-up
 
 DPI = 300
 PAPERS: dict[str, tuple[float, float]] = {

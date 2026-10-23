@@ -21,7 +21,7 @@ a = Analysis(
     datas=[("shiftwheel/assets", "shiftwheel/assets")] + datas,
     binaries=bins,
     hiddenimports=["win32com.client", "pythoncom", "PySide6.QtNetwork", "PySide6.QtPrintSupport",
-                   "PySide6.QtMultimedia", "cv2", "AppKit",
+                   "PySide6.QtMultimedia", "cv2", "pymupdf", "AppKit",
                    "Quartz", "objc"] + hidden,
     excludes=["tkinter", "PySide6.QtWebEngineCore", "PySide6.QtWebEngineWidgets", "PySide6.QtQml",
               "PySide6.QtQuick", "PySide6.Qt3DCore", "PySide6.QtCharts",

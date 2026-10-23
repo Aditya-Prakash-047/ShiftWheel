@@ -161,7 +161,11 @@ QFrame#card {{ background: rgba(255,255,255,0.07); border: 1px solid rgba(255,25
 QLabel#big {{ font-size: 17pt; font-weight: 700; }}
 QLabel#good {{ color: #8dffb8; font-weight: 600; }}
 QLabel#warn {{ color: #ffd36b; font-weight: 600; }}
-QComboBox QAbstractItemView {{ background: #2a2438; border: 1px solid rgba(255,255,255,0.25); }}
+QComboBoxPrivateContainer {{ background: transparent; border: none; }}
+QComboBox QAbstractItemView {{ background: #2a2438; border: 1px solid rgba(255,255,255,0.25); border-radius: 10px;
+  padding: 4px; outline: none; selection-background-color: rgba(255,255,255,0.15); selection-color: white; }}
+QComboBox QAbstractItemView::item {{ min-height: 26px; padding: 2px 8px; border-radius: 6px; }}
+QComboBox QAbstractItemView::item:selected {{ background: rgba(255,255,255,0.15); }}
 QCheckBox::indicator {{ width: 16px; height: 16px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.5); background: rgba(255,255,255,0.1); }}
 QCheckBox::indicator:checked {{ background: qlineargradient(x1:0,y1:0,x2:1,y2:1, stop:0 {ACCENT_A}, stop:1 {ACCENT_B}); }}
 QTableWidget {{ background: rgba(0,0,0,0.12); border: 1px solid rgba(255,255,255,0.18); border-radius: 8px; gridline-color: rgba(255,255,255,0.08); }}
@@ -325,8 +329,11 @@ QSlider::handle:horizontal {{ background: #ffffff; width: 16px; height: 16px; ma
 QSpinBox, QDoubleSpinBox, QLineEdit, QComboBox, QPlainTextEdit, QTextEdit {{ background: {input}; border: 1px solid {border};
   border-radius: {cr}px; padding: 4px 8px; selection-background-color: {accent}; selection-color: {on_accent}; }}
 QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus, QPlainTextEdit:focus {{ border: 1px solid {accent}; }}
-QComboBox QAbstractItemView {{ background: {surface}; border: 1px solid {border}; outline: none;
-  selection-background-color: {hover}; selection-color: {text}; }}
+QComboBoxPrivateContainer {{ background: transparent; border: none; }}
+QComboBox QAbstractItemView {{ background: {surface}; border: 1px solid {border}; border-radius: {pr}px;
+  padding: 4px; outline: none; selection-background-color: {hover}; selection-color: {text}; }}
+QComboBox QAbstractItemView::item {{ min-height: 26px; padding: 2px 8px; border-radius: {cr}px; color: {text}; }}
+QComboBox QAbstractItemView::item:selected, QComboBox QAbstractItemView::item:hover {{ background: {hover}; }}
 QFrame#card {{ background: {surface}; border: 1px solid {border}; border-radius: 12px; }}
 QLabel#big {{ font-size: 17pt; font-weight: 700; }}
 QLabel#good {{ color: {good}; font-weight: 600; }}
@@ -346,7 +353,7 @@ QScrollBar:horizontal {{ background: transparent; height: 8px; }}
 QScrollBar::handle:horizontal {{ background: {border_strong}; border-radius: 4px; min-width: 30px; }}
 QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; width: 0; }}
 QToolTip {{ background: {surface}; color: {text}; border: 1px solid {border}; border-radius: 6px; padding: 4px; }}
-QMenu {{ background: {surface}; border: 1px solid {border}; border-radius: 10px; padding: 4px; }}
+QMenu {{ background: {surface}; border: 1px solid {border}; border-radius: {pr}px; padding: 4px; }}
 QMenu::item {{ padding: 6px 18px; border-radius: 6px; }}
 QMenu::item:selected {{ background: {hover}; }}
 QMenu::separator {{ height: 1px; background: {border}; margin: 4px 8px; }}
@@ -392,6 +399,7 @@ def qss() -> str:
             border=_rgba(ui.border), border_strong=_rgba(border_strong), input=_rgba(ui.input),
             accent=acc.name(), accent_hover=acc.lighter(110).name(), accent_dark=acc.darker(115).name(),
             on_accent=_rgba(ui.on_accent), good=_rgba(ui.good), warn=_rgba(ui.warn), cr=ui.control_radius,
+            pr=max(ui.control_radius + 4, 8),
             font=ui_family(False)) + (
             "QCheckBox::indicator:checked {{ image: url({check}); }}\n"
             "QComboBox::drop-down {{ border: none; width: 26px; background: transparent; }}\n"
@@ -726,3 +734,26 @@ def apply_shape(widget, path: QPainterPath):
     for poly in path.simplified().toFillPolygons():   # one polygon per separate piece
         region = region.united(QRegion(poly.toPolygon()))
     widget.setMask(region)
+
+
+# ---------------------------------------------------------------- rounded popups
+def round_popup(popup):
+    """Dropdown lists and menus open in windows of their own, square and opaque by default:
+    make the window translucent so the stylesheet's rounded corners show. Before first show."""
+    if popup is None or popup.property("swRounded"):
+        return
+    popup.setWindowFlags(popup.windowFlags() | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint)
+    popup.setAttribute(Qt.WA_TranslucentBackground)
+    popup.setProperty("swRounded", True)
+
+
+def round_popups(root):
+    """Every dropdown and menu inside `root` (call when a window is shown or rebuilt)."""
+    from PySide6.QtWidgets import QComboBox, QMenu, QStyledItemDelegate
+    for combo in root.findChildren(QComboBox):
+        view = combo.view()
+        if not isinstance(view.itemDelegate(), QStyledItemDelegate):
+            view.setItemDelegate(QStyledItemDelegate(view))      # so ::item padding / radius apply
+        round_popup(view.window())
+    for menu in root.findChildren(QMenu):
+        round_popup(menu)
