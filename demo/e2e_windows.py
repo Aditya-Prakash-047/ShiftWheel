@@ -740,7 +740,8 @@ def main():
             drive_meta_location)
         run("Metadata: remove all", "explorer", ["Photo.jpg"], "Tools", "Metadata", v_no_meta, drive_meta_all)
         # ---- PDF tools
-        run("PDF Compress", "explorer", ["Report.pdf"], "Tools", "Compress", v_pdf_compress)
+        run("PDF Compress", "explorer", ["Report.pdf"], "Tools", "Compress", v_pdf_compress,
+            drive_button("Compress PDF.*", "Compress"))
         run("PDF Split", "explorer", ["Report.pdf"], "Tools", "Split", v_pdf_n(3))
         run("PDF Rotate", "explorer", ["Report.pdf"], "Tools", "Rotate", v_rotated)
         run("PDF Protect", "explorer", ["Report.pdf"], "Tools", "Protect", v_protected, drive_protect)
@@ -769,7 +770,8 @@ def main():
         run("WAV → MP3", "explorer", ["Tone.wav"], "Convert", "MP3", v_media(".mp3", acodec="mp3", dur=5))
         # ---- office & files
         run("CSV → XLSX", "explorer", ["Sales.csv"], "Convert", "XLSX", v_xlsx)
-        run("Folder → ZIP", "explorer", ["Project"], "Tools", "Zip", v_zip_has("readme.txt"))
+        run("Folder → ZIP", "explorer", ["Project"], "Tools", "Zip", v_zip_has("readme.txt"),
+            drive_button("Create ZIP.*", "Create ZIP"))
         # ---- second launch with a file (Send To / right-click path)
         run_ipc("Send To → PNG", "Photo.jpg", "PNG", v_format("PNG", ".png"))
         # ---- from the Desktop
