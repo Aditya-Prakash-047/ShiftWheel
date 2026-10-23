@@ -15,6 +15,7 @@ class Result:
     outs: list[Path]
     srcs: list[Path] = field(default_factory=list)
     good: str = ""     # highlighted figure, e.g. "−75%"
+    undoable: bool = True   # False when the "outputs" are the user's own files (Move)
 
     @property
     def thumb(self) -> Path | None:
@@ -126,7 +127,9 @@ def summarize(action: str, srcs: list, outs: list, extra: str = "") -> Result:
                       good="private copy")
 
     if name == "Split":
-        return Result(f"Split into {len(outs)} PDFs", f"{o0.name} …", outs, srcs)
+        kind = "PDFs" if o0.suffix.lower() == ".pdf" else "pieces"
+        where = f"{o0.parent.name}/" if o0.suffix.lower() != ".pdf" else f"{o0.name} …"
+        return Result(f"Split into {len(outs)} {kind}", where, outs, srcs)
 
     if name == "Merge" and o0.suffix.lower() != ".pdf":
         return Result(f"Joined {len(srcs)} clips", f"{o0.name} · {human_size(after)}", outs, srcs)
@@ -150,6 +153,9 @@ def summarize(action: str, srcs: list, outs: list, extra: str = "") -> Result:
     if name == "Unpack":
         n = sum(1 for o in outs for f in o.rglob("*") if f.is_file()) if o0.is_dir() else len(outs)
         return Result("Unpacked", f"{n} file{'s' if n != 1 else ''} → {o0.name}/", outs, srcs)
+    if name == "Move":
+        return Result(f"Moved {len(outs)} item{'s' if len(outs) != 1 else ''}", extra or o0.parent.name, outs, srcs,
+                      undoable=False)
     if name == "Duplicate":
         return Result("Duplicated", f"{o0.name}" + (f" · {len(outs)} items" if len(outs) > 1 else ""), outs, srcs)
     if name == "Zip":
@@ -161,10 +167,13 @@ def summarize(action: str, srcs: list, outs: list, extra: str = "") -> Result:
         good = "true size" if name in ("ID Card", "Passport") else ""
         bits = [b for b in (extra, o0.name, human_size(after)) if b]
         return Result(title, " · ".join(bits), outs, srcs, good=good)
-    if name in ("Trim", "GIF", "Speed", "Mute", "Rotate", "Normalize", "Snapshot", "Text", "OCR"):
+    if name in ("Trim", "GIF", "Speed", "Mute", "Rotate", "Normalize", "Snapshot", "Text", "OCR", "Collage",
+                "Organize", "Channels", "Bleep", "Visualize", "Silence"):
         title = {"Trim": "Trimmed", "GIF": "GIF made", "Speed": "Speed changed", "Mute": "Sound removed",
                  "Rotate": "Rotated 90°", "Normalize": "Loudness evened out", "Snapshot": "Frame saved",
-                 "Text": "Text saved", "OCR": "Now searchable"}[name]
+                 "Text": "Text saved", "OCR": "Now searchable", "Collage": "Collage made",
+                 "Organize": "Pages organized", "Channels": "Channels converted", "Bleep": "Bleeped",
+                 "Visualize": "Video made", "Silence": "Silence trimmed"}[name]
         bits = [b for b in (extra, o0.name, human_size(after)) if b]
         return Result(title, " · ".join(bits), outs, srcs)
 

@@ -26,6 +26,7 @@ from .util import file_size, human_size, sibling
 from .window import GlassWindow, ImageView
 
 Notify = Callable[..., None]
+_KEEP: set = set()          # windows opened from another window (not through the app)
 
 
 # ---------------------------------------------------------------- small widgets
@@ -1089,7 +1090,20 @@ class MetadataWindow(ToolWindow):
             loc = QPushButton("Remove location only")
             loc.clicked.connect(self.strip_location)
             extra.append(loc)
+        edit = QPushButton("Edit fields…")
+        edit.clicked.connect(self._edit)
+        extra = list(extra) + [edit]
         self.body.addLayout(self.footer("Remove all metadata", self.strip, None, extra))
+
+    def _edit(self):
+        """Hand over to the field editor (it keeps itself alive like any app window)."""
+        from .tools2 import MetadataEditWindow
+        w = MetadataEditWindow(self.path, self.notify)
+        w.submit = self.submit
+        _KEEP.add(w)
+        w.destroyed.connect(lambda *_: _KEEP.discard(w))
+        w.present()
+        self.close()
 
     def strip(self):
         path, is_pdf = self.path, self.is_pdf
@@ -1119,7 +1133,7 @@ class CompressWindow(ToolWindow):
             self.full_px = im.width * im.height
             self.full_long = max(im.size)
 
-        row, self.mode = toggle_row(["Quality", "Target size"])
+        row, self.mode = toggle_row(["Quality", "Target size", "Percent smaller"])
         self.body.addLayout(row)
 
         self.q_box = QWidget()
@@ -1143,6 +1157,14 @@ class CompressWindow(ToolWindow):
         tl.addStretch(1)
         self.t_box.setVisible(False)
         self.body.addWidget(self.t_box)
+
+        self.p_box = QWidget()
+        pg = QGridLayout(self.p_box)
+        pg.setContentsMargins(0, 0, 0, 0)
+        self.pct = slider(10, 90, 50)
+        slider_row(pg, 0, "Smaller by", self.pct, lambda v: f"{v}%")
+        self.p_box.setVisible(False)
+        self.body.addWidget(self.p_box)
 
         g2 = QGridLayout()
         g2.addWidget(QLabel("Size"), 0, 0)
@@ -1185,6 +1207,7 @@ class CompressWindow(ToolWindow):
         self.side.currentIndexChanged.connect(lambda _: self._timer.start())
         self.webp.toggled.connect(lambda _: self._timer.start())
         self.tgrp.idClicked.connect(lambda _: self._timer.start())
+        self.pct.valueChanged.connect(lambda _: self._timer.start())
         self.mode.idClicked.connect(self._mode)
         self._set_before()
         self.estimate()
@@ -1192,6 +1215,7 @@ class CompressWindow(ToolWindow):
     def _mode(self, i):
         self.q_box.setVisible(i == 0)
         self.t_box.setVisible(i == 1)
+        self.p_box.setVisible(i == 2)
         self._timer.start()
 
     def _detail_box(self, im: Image.Image) -> tuple[int, int, int, int]:
@@ -1232,6 +1256,10 @@ class CompressWindow(ToolWindow):
         px_ratio = (out_long / max(im.size)) ** 2
         if self.mode.checkedId() == 1:
             limit = self.TARGETS[self.tgrp.checkedId()][1]
+            q = self._quality_for(im, target, limit, px_ratio)
+            note = f"quality ≈ {q}"
+        elif self.mode.checkedId() == 2:
+            limit = file_size(self.path) * (1 - self.pct.value() / 100)
             q = self._quality_for(im, target, limit, px_ratio)
             note = f"quality ≈ {q}"
         else:
@@ -1282,20 +1310,22 @@ class CompressWindow(ToolWindow):
     def save(self):
         side, target = self._settings()
         paths = list(self.paths)
-        if self.mode.checkedId() == 1:
-            limit = self.TARGETS[self.tgrp.checkedId()][1]
-            label = self.TARGETS[self.tgrp.checkedId()][0]
+        if self.mode.checkedId() in (1, 2):
+            pct = self.pct.value()
+            fixed = self.TARGETS[self.tgrp.checkedId()][1] if self.mode.checkedId() == 1 else None
+            label = f"target {self.TARGETS[self.tgrp.checkedId()][0]}" if fixed else f"{pct}% smaller"
 
             def work():
                 outs = []
                 for p in paths:
+                    limit = fixed or max(1024, int(file_size(p) * (1 - pct / 100)))   # each file by its own size
                     im = open_image(p)
                     if side and max(im.size) > side:
                         im.thumbnail((side, side), Image.LANCZOS)
                     q, s2 = imaging.plan_target_size(im, target, limit)
                     outs.append(imaging.compress_to(p, q, min(x for x in (side, s2) if x) if (side or s2) else None, target))
                 return outs
-            self.run(work, "Compressing…", f"target {label}")
+            self.run(work, "Compressing…", label)
         else:
             q = self.q.value()
             self.run(lambda: [imaging.compress_to(p, q, side, target) for p in paths], "Compressing…", f"quality {q}")

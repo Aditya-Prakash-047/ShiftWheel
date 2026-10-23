@@ -1,4 +1,4 @@
-"""Zip files/folders, extract archives (ZIP, 7Z, TAR, GZ…), convert between them.
+"""Zip files/folders, extract archives (ZIP, 7Z, TAR, GZ, RAR…), convert between them.
 Extraction refuses paths that would escape the destination folder (zip-slip)."""
 from __future__ import annotations
 
@@ -11,7 +11,9 @@ from pathlib import Path
 
 from .util import UserError, output_dir, unique_path
 
-ARCHIVE_TARGETS = ["ZIP", "7Z"]
+ARCHIVE_TARGETS = ["ZIP", "7Z", "TAR", "GZIP"]
+EXT = {"ZIP": "zip", "7Z": "7z", "TAR": "tar", "GZIP": "tar.gz"}
+KIND_TARGET = {"zip": "ZIP", "7z": "7Z", "tar": "TAR", "tgz": "GZIP"}
 
 
 def kind(path: str | Path) -> str:
@@ -20,8 +22,12 @@ def kind(path: str | Path) -> str:
         return "zip"
     if n.endswith(".7z"):
         return "7z"
-    if n.endswith((".tar", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".tar.xz", ".txz")):
+    if n.endswith((".tar.gz", ".tgz")):
+        return "tgz"
+    if n.endswith((".tar", ".tar.bz2", ".tbz2", ".tar.xz", ".txz")):
         return "tar"
+    if n.endswith(".rar"):
+        return "rar"
     if n.endswith(".gz"):
         return "gz"
     return ""
@@ -29,7 +35,7 @@ def kind(path: str | Path) -> str:
 
 def _stem(path: Path) -> str:
     n = path.name
-    for ext in (".tar.gz", ".tar.bz2", ".tar.xz", ".tgz", ".tbz2", ".txz", ".tar", ".zip", ".7z", ".gz"):
+    for ext in (".tar.gz", ".tar.bz2", ".tar.xz", ".tgz", ".tbz2", ".txz", ".tar", ".zip", ".7z", ".gz", ".rar"):
         if n.lower().endswith(ext):
             return n[: -len(ext)]
     return path.stem
@@ -53,7 +59,7 @@ def zip_paths(paths: list, fmt: str = "ZIP") -> Path:
     name = first.name if first.is_dir() else first.stem
     if len(paths) > 1:
         name = first.parent.name or "Archive"
-    out = unique_path(output_dir(first) / f"{name}.{fmt.lower()}")
+    out = unique_path(output_dir(first) / f"{name}.{EXT.get(fmt.upper(), fmt.lower())}")
     items = list(_walk(paths))
     if not items:
         raise UserError("Nothing to compress.")
@@ -64,6 +70,10 @@ def zip_paths(paths: list, fmt: str = "ZIP") -> Path:
             with py7zr.SevenZipFile(tmp, "w") as z:
                 for full, arc in items:
                     z.write(full, arc)
+        elif fmt.upper() in ("TAR", "GZIP"):
+            with tarfile.open(tmp, "w:gz" if fmt.upper() == "GZIP" else "w") as t:
+                for full, arc in items:
+                    t.add(full, arc)
         else:
             with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as z:
                 for full, arc in items:
@@ -99,7 +109,9 @@ def extract(path) -> Path:
                 for n in z.getnames():
                     _safe(dest, n)
                 z.extractall(dest)
-        elif k == "tar":
+        elif k == "rar":
+            _extract_rar(path, dest)
+        elif k in ("tar", "tgz"):
             with tarfile.open(path) as t:
                 for m in t.getmembers():
                     _safe(dest, m.name)
@@ -136,9 +148,31 @@ def convert_archive(path, target: str) -> Path:
         out = zip_paths([p for p in folder.iterdir()], target) if any(folder.iterdir()) else None
         if out is None:
             raise UserError("The archive is empty.")
-        final = unique_path(output_dir(path) / f"{_stem(Path(path))}.{target.lower()}")
+        final = unique_path(output_dir(path) / f"{_stem(Path(path))}.{EXT.get(target.upper(), target.lower())}")
         shutil.move(str(out), final)
         return final
+
+
+def _extract_rar(path: Path, dest: Path) -> None:
+    """RAR (read-only): Windows 10+ ships libarchive's tar.exe, which reads RAR 4 and 5 and,
+    by default, refuses absolute paths and '..' (no zip-slip)."""
+    import subprocess
+    import sys
+    tar = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "tar.exe"
+    if sys.platform != "win32" or not tar.exists():
+        sevenzip = shutil.which("7z")
+        if not sevenzip:
+            raise UserError("Opening RAR files needs Windows 10 or later (or 7-Zip installed).")
+        cmd = [sevenzip, "x", "-y", f"-o{dest}", str(path)]
+    else:
+        cmd = [str(tar), "-xf", str(path), "-C", str(dest)]
+    r = subprocess.run(cmd, capture_output=True, creationflags=0x08000000 if sys.platform == "win32" else 0)
+    if r.returncode != 0:
+        msg = (r.stderr or b"").decode("utf-8", "replace").lower()
+        raise UserError("This RAR is password-protected." if "passw" in msg or "encrypt" in msg
+                        else "The archive is damaged or uses a RAR feature that can't be read.")
+    for f in dest.rglob("*"):                 # belt and braces
+        _safe(dest, str(f.relative_to(dest)))
 
 
 def extract_to(path, base: Path) -> Path:

@@ -42,8 +42,10 @@ def foreground_exe() -> str:
 
 
 class ShiftWheelWatcher(QObject):
-    show_menu = Signal(QPoint)
-    toggle_ring = Signal()
+    """Each wheel can have its own key (Settings → Keys): pressing it while dragging opens the
+    wheel on that ring; pressing another bound key switches ring; the same key again cycles."""
+    show_menu = Signal(QPoint, str)     # where, which ring
+    switch_ring = Signal(str)           # a bound key was pressed while the menu is open
     hide_menu = Signal()
 
     def __init__(self, menu_visible, menu_got_drag, parent=None):
@@ -52,13 +54,13 @@ class ShiftWheelWatcher(QObject):
         self.menu_got_drag = menu_got_drag
         self.enabled = True
         self.excluded: set[str] = set()     # program names where the wheel never opens
-        self.vk = VK_SHIFT
-        self.key_name = "shift"
+        self.bindings: dict[str, tuple[str, int]] = {"Convert": ("shift", VK_SHIFT)}
         self._down_at: QPoint | None = None
-        self._shift_was = False
+        self._was: dict[str, bool] = {}
         self._fired = False
         self._idle_ticks = 0
         self._pending_tap = 0
+        self._pending_ring = ""
         self._shown_at = QPoint()
         self._user32 = ctypes.windll.user32 if sys.platform == "win32" else None
         self._mac = None
@@ -71,9 +73,13 @@ class ShiftWheelWatcher(QObject):
             self._mac = platform_linux if platform_linux.available() else None
         self.timer = QTimer(self, interval=15, timeout=self._tick)
 
+    def set_bindings(self, ring_keys: dict[str, str], vks: dict[str, int]):
+        """{ring: key name} plus {key name: virtual-key code}."""
+        self.bindings = {ring: (key, vks[key]) for ring, key in ring_keys.items() if vks.get(key)}
+
     def set_key(self, name: str):
-        self.key_name = name
-        self.vk = {"shift": VK_SHIFT, "ctrl": 0x11, "alt": 0x12}.get(name, VK_SHIFT)
+        """One key for the first wheel (older API)."""
+        self.bindings = {"Convert": (name, {"shift": VK_SHIFT, "ctrl": 0x11, "alt": 0x12}.get(name, VK_SHIFT))}
 
     def start(self):
         if self._user32 is not None or self._mac is not None:
@@ -82,34 +88,42 @@ class ShiftWheelWatcher(QObject):
     def _down(self, vk: int) -> bool:
         return bool(self._user32.GetAsyncKeyState(vk) & 0x8000)
 
-    def _state(self) -> tuple[bool, bool, bool, bool]:
-        """(left button, trigger key, escape, trigger key tapped since the last poll).
-        The last one catches a quick tap that started and ended while the UI thread was
-        busy (e.g. the moment the menu opens), which sampling the key alone would miss."""
+    def _state(self) -> tuple[bool, bool, dict[str, tuple[bool, bool]]]:
+        """(left button, escape, {ring: (key down, key tapped since the last poll)}).
+        'Tapped' catches a quick tap that started and ended while the UI thread was busy
+        (e.g. the moment the menu opens), which sampling the key alone would miss."""
         if self._mac is not None:
             m = self._mac
-            return m.left_button_down(), m.key_down(self.key_name), m.escape_down(), False
-        k = self._user32.GetAsyncKeyState(self.vk)
-        return self._down(VK_LBUTTON), bool(k & 0x8000), self._down(VK_ESCAPE), bool(k & 0x0001)
+            keys = {ring: (bool(m.key_down(name)) if name in ("shift", "ctrl", "alt") else False, False)
+                    for ring, (name, _) in self.bindings.items()}
+            return m.left_button_down(), m.escape_down(), keys
+        keys = {}
+        for ring, (_, vk) in self.bindings.items():
+            k = self._user32.GetAsyncKeyState(vk)
+            keys[ring] = (bool(k & 0x8000), bool(k & 0x0001))
+        return self._down(VK_LBUTTON), self._down(VK_ESCAPE), keys
 
     def _tick(self):
-        lbtn, shift, esc, tapped = self._state()
+        lbtn, esc, keys = self._state()
         pos = QCursor.pos()
         # a new press: seen going down, or a whole tap between two polls (held-key
         # auto-repeat also sets the tapped bit, but then the key is still down)
-        press = (shift and not self._shift_was) or (tapped and not shift)
+        pressed = [r for r, (down, tap) in keys.items() if (down and not self._was.get(r)) or (tap and not down)]
+        held = [r for r, (down, _) in keys.items() if down]
 
         if self.menu_visible():
             if not lbtn or esc:
                 # drop happened (or was cancelled) – give the drop event a moment to land
                 QTimer.singleShot(120, self.hide_menu.emit)
-            elif press or self._pending_tap:
-                # tap Shift again to flip Convert → Tools → Print. Right after the menu opens
-                # the drag may not have reached it yet: keep the tap until it does.
+            elif pressed or self._pending_tap:
+                # Right after the menu opens the drag may not have reached it yet: keep the
+                # key press until it does.
+                if pressed:
+                    self._pending_ring = pressed[0]
                 if self.menu_got_drag():
                     self._pending_tap = 0
-                    self.toggle_ring.emit()
-                elif press:
+                    self.switch_ring.emit(self._pending_ring)
+                elif pressed:
                     self._pending_tap = TAP_GRACE
                 else:
                     self._pending_tap -= 1
@@ -125,15 +139,16 @@ class ShiftWheelWatcher(QObject):
                     self._down_at = pos
                     self._fired = False
                 moved = (pos - self._down_at).manhattanLength() >= DRAG_THRESHOLD
-                if self.enabled and moved and shift and not self._fired:
+                ring = (pressed or held or [None])[0]
+                if self.enabled and moved and ring and not self._fired:
                     self._fired = True
                     # in excluded apps Shift+drag belongs to the app (Settings → Behaviour)
                     if not (self.excluded and foreground_exe() in self.excluded):
                         self._idle_ticks = 0
                         self._pending_tap = 0
                         self._shown_at = pos
-                        self.show_menu.emit(pos)
+                        self.show_menu.emit(pos, ring)
             else:
                 self._down_at = None
                 self._fired = False
-        self._shift_was = shift
+        self._was = {r: down for r, (down, _) in keys.items()}

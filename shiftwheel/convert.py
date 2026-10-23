@@ -24,11 +24,13 @@ except ImportError:  # pragma: no cover
     import fitz  # type: ignore
 
 IMAGE_TARGETS = ["PNG", "JPG", "WEBP", "HEIC", "TIFF", "AVIF", "BMP", "PDF", "ICO", "GIF"]
-PDF_TARGETS = ["JPG", "PNG", "DOCX", "TXT"]
-DOCX_TARGETS = ["PDF", "TXT"]
-TEXT_TARGETS = ["PDF", "DOCX"]
-MARKDOWN_TARGETS = ["PDF", "DOCX", "HTML"]
-HTML_TARGETS = ["PDF", "DOCX", "TXT"]
+PDF_TARGETS = ["DOCX", "PPTX", "XLSX", "JPG", "PNG", "EPUB", "TXT", "MD"]     # Santra's order
+DOCX_TARGETS = ["PDF", "TXT", "MD", "HTML", "EPUB"]
+TEXT_TARGETS = ["PDF", "DOCX", "EPUB"]
+MARKDOWN_TARGETS = ["PDF", "DOCX", "HTML", "EPUB", "TXT"]
+HTML_TARGETS = ["PDF", "DOCX", "TXT", "MD", "EPUB"]
+EBOOK_TARGETS = ["PDF", "DOCX", "TXT", "MD", "HTML"]
+SUBTITLE_TARGETS = ["SRT", "VTT", "TXT"]
 
 PIL_FORMAT = {"PNG": "PNG", "JPG": "JPEG", "WEBP": "WEBP", "HEIC": "HEIF", "TIFF": "TIFF",
               "AVIF": "AVIF", "BMP": "BMP", "PDF": "PDF", "ICO": "ICO", "GIF": "GIF"}
@@ -36,7 +38,18 @@ NO_ALPHA = {"JPG", "PDF", "BMP"}
 
 
 # ---------------------------------------------------------------- images
+def _svg(path: str | Path, max_side: int = 2400) -> Image.Image:
+    """SVG (input only): rendered by MuPDF, transparent background, about max_side across."""
+    with fitz.open(path) as doc:
+        page = doc[0]
+        k = max(1.0, max_side / max(page.rect.width, page.rect.height, 1))
+        pix = page.get_pixmap(matrix=fitz.Matrix(k, k), alpha=True)
+        return Image.frombytes("RGBA", (pix.width, pix.height), pix.samples)
+
+
 def open_image(path: str | Path) -> Image.Image:
+    if str(path).lower().endswith(".svg"):
+        return _svg(path)
     im = Image.open(path)
     im.seek(0)
     im = ImageOps.exif_transpose(im)  # honour camera rotation
@@ -49,6 +62,8 @@ def open_image(path: str | Path) -> Image.Image:
 
 def open_preview(path: str | Path, max_side: int = 1400) -> Image.Image:
     """Fast, reduced-size decode for on-screen previews (JPEG decodes at 1/2, 1/4, 1/8 scale)."""
+    if str(path).lower().endswith(".svg"):
+        return _svg(path, max_side)
     im = Image.open(path)
     im.seek(0)
     if im.format == "JPEG":
@@ -471,7 +486,9 @@ def targets_for(cat: str, src_ext: str) -> list[str]:
         return MARKDOWN_TARGETS
     if cat == "text" and src_ext in ("html", "htm"):
         return HTML_TARGETS
-    return {"pdf": PDF_TARGETS, "docx": DOCX_TARGETS, "text": TEXT_TARGETS}.get(cat, [])
+    if cat == "subtitle":
+        return [t for t in SUBTITLE_TARGETS if t != cur]
+    return {"pdf": PDF_TARGETS, "docx": DOCX_TARGETS, "text": TEXT_TARGETS, "ebook": EBOOK_TARGETS}.get(cat, [])
 
 
 def convert(src: str | Path, cat: str, target: str) -> list[Path]:
@@ -485,8 +502,23 @@ def convert(src: str | Path, cat: str, target: str) -> list[Path]:
             return pdf_to_txt(src)
         if target == "DOCX":
             return pdf_to_docx(src)
+        from . import docs
+        return {"MD": docs.pdf_to_markdown, "XLSX": docs.pdf_to_xlsx, "PPTX": docs.pdf_to_pptx,
+                "EPUB": docs.pdf_to_epub}[target](src)
     if cat == "docx":
+        if target in ("MD", "HTML", "EPUB"):
+            from . import docs
+            return docs.document_to(src, target)
         return docx_to_pdf(src) if target == "PDF" else docx_to_txt(src)
     if cat == "text":
+        if target in ("MD", "EPUB") or (target == "HTML" and Path(src).suffix.lower() not in MARKUP_EXTS):
+            from . import docs
+            return docs.document_to(src, target)
         return {"PDF": text_to_pdf, "DOCX": text_to_docx, "HTML": text_to_html, "TXT": html_to_text}[target](src)
+    if cat == "ebook":
+        from . import docs
+        return docs.epub_to(src, target)
+    if cat == "subtitle":
+        from . import docs
+        return docs.subtitles_to(src, target)
     raise ValueError(f"Can't convert {cat} to {target}")

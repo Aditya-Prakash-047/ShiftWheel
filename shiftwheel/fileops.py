@@ -57,3 +57,55 @@ def checksum_text(results: list[tuple[Path, str]]) -> str:
     if len(results) == 1:
         return results[0][1]
     return "\n".join(f"{d}  {f.name}" for f, d in results)
+
+
+def move_to(paths, folder: str | Path) -> list[Path]:
+    """Move files/folders into `folder` (names that are taken get (1), (2)…)."""
+    from .util import unique_path
+    folder = Path(folder)
+    out = []
+    for p in map(Path, paths):
+        dst = unique_path(folder / p.name)
+        if p.resolve() == dst.resolve() or folder.resolve() == p.parent.resolve():
+            out.append(p)
+            continue
+        shutil.move(str(p), str(dst))
+        out.append(dst)
+    return out
+
+
+def open_terminal(path: str | Path) -> None:
+    """Windows Terminal if installed, else PowerShell, in the folder (or the file's folder)."""
+    p = Path(path)
+    folder = p if p.is_dir() else p.parent
+    if sys.platform == "win32":
+        wt = shutil.which("wt")
+        if wt:
+            subprocess.Popen([wt, "-d", str(folder)])
+        else:
+            subprocess.Popen(["powershell.exe", "-NoExit", "-Command", "Set-Location -LiteralPath '" + str(folder).replace("'", "''") + "'"],
+                             creationflags=0x00000010)          # CREATE_NEW_CONSOLE
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", "-a", "Terminal", str(folder)])
+    else:
+        for term in ("x-terminal-emulator", "gnome-terminal", "konsole", "xfce4-terminal"):
+            if shutil.which(term):
+                subprocess.Popen([term], cwd=str(folder))
+                break
+
+
+def share(path: str | Path) -> bool:
+    """Windows' share sheet (Nearby sharing, Mail, apps) through Explorer's own Share verb."""
+    if sys.platform != "win32":
+        return False
+    import win32com.client
+    p = Path(path)
+    item = win32com.client.Dispatch("Shell.Application").Namespace(str(p.parent)).ParseName(p.name)
+    if item is None:
+        return False
+    for v in item.Verbs():
+        if v.Name.replace("&", "").strip().lower() == "share":
+            v.DoIt()
+            return True
+    item.InvokeVerbEx("Windows.ModernShare")
+    return True

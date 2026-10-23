@@ -7,7 +7,7 @@ onefile = os.environ.get("ONEFILE") == "1"
 datas, bins, hidden = [], [], []
 for pkg in ("pillow_heif", "imageio_ffmpeg", "rapidocr", "onnxruntime", "omegaconf", "pyclipper", "shapely",
             "py7zr", "pyppmd", "pybcj", "inflate64", "multivolumefile", "brotli", "Cryptodome", "openpyxl",
-            "markdown"):
+            "markdown", "pptx"):
     try:
         d, b, h = collect_all(pkg)
     except Exception:
@@ -20,10 +20,11 @@ a = Analysis(
     ["run.py"],
     datas=[("shiftwheel/assets", "shiftwheel/assets")] + datas,
     binaries=bins,
-    hiddenimports=["win32com.client", "pythoncom", "PySide6.QtNetwork", "PySide6.QtPrintSupport", "cv2", "AppKit",
+    hiddenimports=["win32com.client", "pythoncom", "PySide6.QtNetwork", "PySide6.QtPrintSupport",
+                   "PySide6.QtMultimedia", "cv2", "AppKit",
                    "Quartz", "objc"] + hidden,
     excludes=["tkinter", "PySide6.QtWebEngineCore", "PySide6.QtWebEngineWidgets", "PySide6.QtQml",
-              "PySide6.QtQuick", "PySide6.Qt3DCore", "PySide6.QtMultimedia", "PySide6.QtCharts",
+              "PySide6.QtQuick", "PySide6.Qt3DCore", "PySide6.QtCharts",
               "PySide6.QtDataVisualization", "PySide6.QtPdf", "pandas", "PySide6.QtSql", "PySide6.QtTest",
               "PySide6.QtOpenGL", "PySide6.QtSvgWidgets", "PySide6.QtDesigner", "matplotlib", "scipy",
               # pymupdf auto-imports its optional ONNX layout analyser when onnxruntime is present;
@@ -34,7 +35,9 @@ a = Analysis(
               "rapidocr.inference_engine.tensorrt"],
 )
 
-DROP = ("Qt6Quick", "Qt6Qml", "Qt6Pdf", "Qt6WebEngine", "Qt63D", "Qt6Multimedia", "Qt6Charts",
+# sounds use QtMultimedia with the native Windows backend only: its FFmpeg plugin is ~40 MB
+DROP = ("Qt6Quick", "Qt6Qml", "Qt6Pdf", "Qt6WebEngine", "Qt63D", "Qt6MultimediaQuick", "Qt6Charts",
+        "ffmpegmediaplugin", "avcodec-", "avformat-", "avutil-", "swresample-", "swscale-",
         "Qt6VirtualKeyboard", "Qt6Designer", "Qt6ShaderTools", "Qt6Sql", "Qt6Test", "opengl32sw",
         "Qt6OpenGL", "Qt6DataVisualization", "Qt6Positioning", "Qt6Sensors", "Qt6SerialPort",
         "Qt6Bluetooth", "Qt6Nfc", "Qt6RemoteObjects", "Qt6Scxml", "Qt6SpatialAudio", "Qt6TextToSpeech",

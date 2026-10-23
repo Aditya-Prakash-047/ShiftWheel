@@ -105,7 +105,8 @@ class RangeBar(QWidget):
             p.fillRect(QRectF(r.left(), r.top(), x0 - r.left(), r.height()), QColor(0, 0, 0, 150))
             p.fillRect(QRectF(x1, r.top(), r.right() - x1, r.height()), QColor(0, 0, 0, 150))
         p.setClipping(False)
-        accent = QColor(255, 120, 60)
+        from . import glass
+        accent = glass.accent()          # the theme's highlight colour
         if self.single:
             x = self.x_of(self.start)
             p.setPen(QPen(accent, 3))

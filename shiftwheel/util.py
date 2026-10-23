@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".heic", ".heif", ".tif", ".tiff",
+IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".heic", ".heif", ".tif", ".tiff", ".svg",
               ".avif", ".bmp", ".gif", ".ico"}
 PDF_EXTS = {".pdf"}
 DOCX_EXTS = {".docx"}
@@ -12,7 +12,9 @@ TEXT_EXTS = {".txt", ".md", ".markdown", ".log", ".json", ".xml", ".html", ".htm
 SHEET_EXTS = {".xlsx", ".xlsm", ".xls", ".ods", ".csv", ".tsv"}
 SLIDE_EXTS = {".pptx", ".ppt", ".pps", ".ppsx", ".odp"}
 WORDDOC_EXTS = {".doc", ".rtf", ".odt"}
-ARCHIVE_EXTS = {".zip", ".7z", ".tar", ".gz", ".tgz", ".bz2", ".tbz2", ".xz", ".txz"}
+ARCHIVE_EXTS = {".zip", ".7z", ".tar", ".gz", ".tgz", ".bz2", ".tbz2", ".xz", ".txz", ".rar"}
+SUBTITLE_EXTS = {".srt", ".vtt"}
+EBOOK_EXTS = {".epub"}
 VIDEO_EXTS = {".mp4", ".mov", ".m4v", ".mkv", ".webm", ".avi", ".wmv", ".flv", ".3gp", ".mts", ".m2ts",
               ".mpg", ".mpeg", ".ts", ".ogv"}
 AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".aac", ".ogg", ".oga", ".opus", ".flac", ".wma", ".aiff", ".aif",
@@ -41,6 +43,10 @@ def category(path: str | Path) -> str | None:
         return "worddoc"
     if ext in ARCHIVE_EXTS:
         return "archive"
+    if ext in SUBTITLE_EXTS:
+        return "subtitle"
+    if ext in EBOOK_EXTS:
+        return "ebook"
     return None
 
 

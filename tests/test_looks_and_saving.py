@@ -56,11 +56,15 @@ def test_palette_choice_and_fallbacks(monkeypatch):
 def test_settings_validate_migrate_and_reset(tmp_path):
     q = QSettings(str(tmp_path / "old.ini"), QSettings.IniFormat)
     q.setValue("wheel_style", "santra")                                  # what 1.0 stored
+    q.setValue("trigger", "ctrl")
+    q.setValue("appearance", "dark")                                        # what 1.1 stored globally
+    q.setValue("accent", "pink")
     q.setValue("output", "nonsense")
     q.setValue("wheel_size", "huge")
     q.setValue("pdf_dpi", 999)
     s = S.Settings(q)
-    assert s.get("theme") == "santra"
+    assert s.get("theme") == "santra" and s.get("key_convert") == "ctrl"
+    assert s.custom("santra") == {"mode": "dark", "accent": "pink"} and not q.contains("appearance")
     assert s.get("output") == "next" and s.get("wheel_size") == 100 and s.get("pdf_dpi") == 200
     s.set("ask_name", True)
     s.set("welcomed", True)
@@ -134,15 +138,24 @@ def test_glass_light_mode_stylesheet():
 
 def test_settings_window_builds_and_saves(store):
     w = S.SettingsWindow(store)
-    w.cards[1].click()                                                       # Santra
-    assert store.get("theme") == "santra" and w.cards[1].isChecked()
+    keys = list(themes.THEMES)
+    card = w.cards[keys.index("ember")]
+    card.click()
+    assert store.get("theme") == "ember" and card.isChecked()
     w.mode.setCurrentIndex([k for k, _ in themes.MODES].index("light"))
-    assert store.get("appearance") == "light"
+    assert store.custom("ember") == {"mode": "light"}                       # per theme
+    w._shape("outline", "square")
+    assert store.look().shape.outline == "square"
+    w._color("slices", themes.hexa("#123456"))
+    assert store.custom("ember")["colors"] == {"slices": "#123456"}
+    w.key_boxes["key_tools"].setCurrentIndex([k for k, _, _ in S.KEYS].index("shift"))
+    assert store.get("key_tools") == "shift" and store.get("key_convert") == "none"   # no duplicates
     w.ask.setChecked(True)
     assert store.get("ask_name") is True
     w.reset_btn.click()
     w.reset_btn.click()
     assert store.get("theme") == themes.DEFAULT_THEME and store.get("ask_name") is False
+    assert store.custom("ember") == {} and store.get("key_convert") == "shift"
     w.close()
 
 

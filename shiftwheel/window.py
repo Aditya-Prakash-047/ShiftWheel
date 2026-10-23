@@ -27,7 +27,7 @@ class GlassWindow(QWidget):
         self.resize(*size)
         self._drag: QPoint | None = None
         self._acrylic = False
-        self.radius = 18
+        self.radius = glass.window_radius()
         self.liquid = glass.LiquidBacking(self, self.radius)
         self.liquid.changed.connect(self.update)
         self._fade = 0.0
@@ -68,7 +68,8 @@ class GlassWindow(QWidget):
         self.resize(min(self.width(), scr.width() - 40), min(self.height(), scr.height() - 40))
         self.move(scr.center() - self.rect().center())
         self._placed = True
-        self.liquid.capture_at(self.frameGeometry())
+        if glass.tokens() is None:          # only the glass look refracts what's behind
+            self.liquid.capture_at(self.frameGeometry())
         self.show()
         if sys.platform == "darwin":
             from . import platform_mac
@@ -102,7 +103,7 @@ class GlassWindow(QWidget):
         elif self.liquid.image is not None:
             # can't re-capture behind ourselves: switch to the system blur instead
             self.liquid.image = None
-            if IS_WIN and not self._acrylic:
+            if IS_WIN and not self._acrylic and glass.tokens() is None:
                 self._acrylic = glass.enable_acrylic(int(self.winId()), glass.acrylic_tint())
             self.update()
 
@@ -132,13 +133,11 @@ class GlassWindow(QWidget):
         r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
         path = glass.rounded_rect_path(r, self.radius)
         img = self.liquid.image
-        if img is not None and not img.isNull() and img.size() == self.size():
+        live = glass.tokens() is None and img is not None and not img.isNull() and img.size() == self.size()
+        if live:
             p.drawImage(0, 0, img)
-            # large surfaces need more opacity than a menu so content stays readable
-            glass.paint_glass(p, path, tint=glass.surface_tint("liquid"), rainbow_alpha=150)
-        else:
-            tint = glass.surface_tint("acrylic" if self._acrylic else "solid")
-            glass.paint_glass(p, path, tint=tint, rainbow_alpha=150)
+        # large surfaces need more opacity than a menu so content stays readable
+        glass.paint_surface(p, path, "window", liquid=live, acrylic=self._acrylic)
 
 
 class ImageView(QWidget):

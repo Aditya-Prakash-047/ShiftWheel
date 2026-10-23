@@ -1,35 +1,57 @@
 # ShiftWheel
 
-Start dragging any file in File Explorer, press **Shift**, and drop it on a slice of the wheel. Convert it, edit it, or print it — right where you are. Everything happens on your PC; nothing is uploaded.
+Start dragging any file in File Explorer, tap a key, and drop it on a slice of the wheel. Convert it, edit it, print it or act on it, right where you are. Everything happens on your PC; nothing is uploaded.
 
 ![Seven wheel themes, each in light and dark](docs/themes.png)
 
 ## How to use
 
 1. Start dragging a file (or several, or a folder) in File Explorer or on the desktop.
-2. Press **Shift**. The wheel opens under the cursor.
+2. Tap a key — like Santra: **Shift** converts, **Ctrl** opens tools, **Alt** opens file actions. The wheel opens under the cursor; release the key and keep dragging.
 3. Drop the file on a slice. The result is saved **next to the original**; the original is never changed.
-4. Tap **Shift** again to switch rings: **Convert → Tools → Print → File**.
+4. Tap another key to switch wheels, or the same key again to go round them: **Convert → Tools → Print → Actions**.
 
-Also: right-click any file or folder → **ShiftWheel…**, **Send to → ShiftWheel**, or double-click the tray icon. Every action ends with a notification showing what changed, with **Open**, **Show in folder** and **Undo**.
+No dragging needed: select a file and press **Ctrl + Alt + W** — the wheel opens at the mouse. In the wheel, **arrow keys** choose, **Enter** applies, **1–9** pick a slice, **Tab** switches wheel, **Esc** cancels. Also: right-click any file → **ShiftWheel…**, **Send to → ShiftWheel**, or double-click the tray icon.
+
+Every action ends with a notification showing what changed, with **Open**, **Show in folder** and **Undo**, and a soft tick plays as slices light up (Santra's sound, recreated).
 
 ## Themes
 
-Pick one in **Settings → Appearance**; every theme has a light and a dark version.
+Pick one in **Settings → Appearance**. Each theme styles the wheel **and** every window, notification and menu (design tokens), and has a light and a dark version.
 
 | Theme | Look | Inspired by |
 |---|---|---|
-| **Ember** (default) | Matte charcoal or porcelain disc, hairline dividers, one coral slice and a coral marker on the rim | ShiftWheel's own design |
-| **Santra** | Warm peach slices, orange highlight, file size in an orange pill | Santra |
+| **Santra** (default) | Frosted glossy tiles with constant gaps and rounded corners, black labels, a solid `#FF5200` slice, a small frosted capsule in the middle. Geometry, colours and label sizes measured from the reference design | Santra |
+| **Ember** | Matte charcoal or porcelain disc, hairline dividers, one coral slice and a coral marker on the rim | ShiftWheel's own design |
 | **Liquid glass** | Clear glass that refracts whatever is behind it | DragShift (the original look) |
 | **Frost** | Milky frosted glass with a large quiet hub | Apple's “Release to Select” menu |
 | **Graphite** | Near-black disc, hairlines, faint blue halo | Radial for macOS |
 | **Blossom** | Soft tiles split by bold dividers, pink highlight | FileFlow concept |
 | **Neon Night** | Synthwave: glowing cyan lines, magenta highlight (dark only) | OG Converter |
 
-- **Light or dark:** *Match Windows* (default) follows *Settings → Personalisation → Colours* and switches live, for the wheel, ShiftWheel's windows and its notifications. Or force Light / Dark.
-- **Highlight colour:** the theme's own, your **Windows accent colour**, or one of seven colours.
-- **Wheel size:** small, normal, large, extra large.
+**Customise any theme** (Settings → Appearance → *Customise …*): light / dark / **match Windows** (switches live) · highlight colour: the theme's, your **Windows accent colour**, presets or any colour · slice, backing and label colours · **shape**: circle, squircle, rounded square, hexagon, octagon · corner roundness, gap between slices, ring thickness, lift on hover · wheel size. Then **Save as new theme**, **Export** it, or **Reset this theme**.
+
+### Theme files
+
+**Import theme…** takes a `.swtheme` package (a zip with `theme.json` and optional `sounds/*.wav`) or a plain `.json` file; **Export…** writes a `.swtheme` with your colours, shape and custom sounds. Everything not given is inherited from `base`; unknown keys and bad values are ignored with a note, never a crash.
+
+```json
+{
+  "format": "shiftwheel-theme", "version": 1,
+  "name": "Square Mint", "author": "you", "base": "ember",
+  "shape": { "outline": "square", "corner": 14, "gap": 4, "innerRatio": 0.42, "iconSet": "fluent" },
+  "light": { "wheel": { "hoverOuter": "#10B981", "sliceInner": "#FFFFFF", "sliceOuter": "#ECFDF5" },
+             "ui":    { "accent": "#10B981", "window": "#F6FBF8" } },
+  "dark":  { "wheel": { "hoverOuter": "#34D399" }, "ui": { "accent": "#34D399" } },
+  "sounds": { "pack": "pop", "files": { "highlight": "sounds/highlight.wav" } }
+}
+```
+
+Colours are `#RGB`, `#RRGGBB`, `#RRGGBBAA` or `rgba(r,g,b,a)`. Wheel keys: `disc, discEdge, sliceInner, sliceMiddle, sliceOuter, sliceEdge, divider, hub, hubEdge, pill, pillEdge, hubText, text, textDim, hoverInner, hoverOuter, hoverEdge, hoverText, arc, glow, shadow` plus `frost, tileGradient, innerRing, neon` (true/false). UI keys: `window, surface, hover, border, input, text, textDim, accent, onAccent, good, warn, bad, radius, controlRadius`. Shape keys: `outline, innerRatio, gap, corner, rim, lift, labelRadius, labelSize, toolLabelSize, iconSize, iconSet, hubLabel, font`.
+
+## Sounds
+
+Settings → Sounds: on/off, volume, a **pack** (Santra · Soft · Glass · Pop · Arcade, or *match the theme*), and each event — slice lights up, wheel opens, ring changes, file dropped, job finished, something went wrong — can be switched off, previewed, or replaced with **your own sound** (any audio file; converted and kept with ShiftWheel, and included when you export a theme). Santra's tick is synthesised to match the one on the reference design (60 ms, bright transient around 8–9 kHz) rather than copied.
 
 ## Settings
 
@@ -37,28 +59,32 @@ Pick one in **Settings → Appearance**; every theme has a light and a dark vers
 
 | Page | What you can change |
 |---|---|
-| **Appearance** | Theme (live previews), light / dark / match Windows, highlight colour, wheel size |
-| **Saving** | Save next to the original, in a “ShiftWheel” subfolder, or in a folder you choose · **Ask for a file name before saving** (rename it or pick another folder; Esc keeps the automatic name) · when the name is taken: keep both or replace the older result (never the original) · after saving: just notify, open the file, or show it in its folder · JPG/WebP quality · PDF → image resolution |
-| **Behaviour** | Trigger key (Shift / Ctrl / Alt) · apps where the wheel never opens (Photoshop, Figma… where Shift-drag already means something) · notifications for every result or only problems · start with Windows · right-click menu entry |
+| **Appearance** | Theme gallery with live previews, per-theme customisation (above), import / export / save as new theme, wheel size |
+| **Keys** | A key for each wheel (Shift, Ctrl, Alt, Space, Tab, Caps Lock, backtick or none; duplicates are prevented) · tap the same key to go round · the select-and-press shortcut (any key combination) |
+| **Sounds** | Above |
+| **Saving** | Next to the original, a “ShiftWheel” subfolder, or a folder you choose · **ask for a file name before saving** · when the name is taken: keep both or replace the older result (never the original) · after saving: notify, open, or show in folder · JPG/WebP quality · PDF → image resolution |
+| **Behaviour** | Apps where the wheel never opens (Photoshop, Figma… where Shift-drag already means something) · notifications for every result or only problems · start with Windows · right-click menu entry |
 
-Settings are checked when they're read: anything unknown or out of range falls back to the default, and **Reset to defaults** puts everything back.
+Settings are checked when they're read: anything unknown or out of range falls back to the default, older settings are migrated, and **Reset all settings** puts everything back.
 
 ## What it does
 
 | Files | Convert | Tools | Print |
 |---|---|---|---|
-| **Images** (JPG, PNG, WEBP, HEIC, AVIF, TIFF, BMP, GIF, ICO) | Any of those, or PDF (several images → one PDF) | Compress (to a target size), Resize, Crop, Edit, Annotate, Redact, Add BG, Metadata, **Text (OCR)** | **ID Card**, **Passport**, **Scan**, **Print** |
-| **PDF** | JPG/PNG per page, DOCX, TXT | Compress, Split, Rotate, Merge, Protect, Extract images, Metadata, **OCR → searchable** | **Print**, **ID Card**, **Scan** |
-| **Video** (MP4, MOV, MKV, WEBM, AVI, WMV…) | MP4, MOV, MKV, WEBM, AVI, GIF, MP3, WAV | Compress (presets or *under N MB*), Trim, GIF, Snapshot, Rotate, Mute, Speed, Merge | |
-| **Audio** (MP3, WAV, M4A, OGG, FLAC, OPUS…) | MP3, M4A, WAV, OGG, FLAC, OPUS | Trim, Compress, Normalize loudness, Speed, Merge | |
+| **Images** (JPG, PNG, WEBP, HEIC, AVIF, TIFF, BMP, GIF, ICO, **SVG** in) | Any of those, or PDF (several images → one PDF) | Compress (quality, *under N KB/MB*, or **N % smaller**), Metadata (view, remove, **edit**), Edit, Annotate, Add BG, Crop, Redact, Resize, **Text (OCR)**, **QR code**, **Collage** (several) | **ID Card**, **Passport**, **Scan**, **Print** |
+| **PDF** | DOCX, **PPTX**, **XLSX** (tables), JPG, PNG, **EPUB**, TXT, **MD** | Compress, Split, Rotate, **Organize pages**, Merge, Protect, Extract images, Metadata, **OCR → searchable** | **Print**, **ID Card**, **Scan** |
+| **Video** (MP4, MOV, MKV, WEBM, AVI, WMV…) | MP4, MOV, MKV, WEBM, AVI, GIF, MP3, WAV | Compress (presets or *under N MB*), Trim, **Crop**, **Split**, Snapshot, Speed, Mute, **Redact**, Rotate, **Metadata**, Merge | |
+| **Audio** (MP3, WAV, M4A, OGG, FLAC, OPUS, AIFF, WMA…) | MP3, M4A, WAV, OGG, FLAC, OPUS | Trim, Compress, Normalize, Speed, **Channels**, **Bleep**, **Visualizer → MP4**, **Trim silence**, **Metadata**, Merge | |
 | **Excel / CSV** (XLSX, XLS, ODS, CSV) | PDF, XLSX, CSV, JSON, HTML | Zip | |
 | **PowerPoint** (PPTX, PPT, ODP) | PDF, PNG/JPG per slide | Zip | |
-| **Word** (DOCX, DOC, RTF, ODT) · **Text** | PDF, DOCX, TXT | | |
-| **Markdown / web pages** (MD, HTML) | PDF, DOCX, HTML / TXT — rendered, not the source code | | |
-| **Archives** (ZIP, 7Z, TAR, GZ) | ZIP ⇄ 7Z | Extract | |
+| **Word** (DOCX, DOC, RTF, ODT) · **Text** | PDF, DOCX, TXT, **MD**, **HTML**, **EPUB** | | |
+| **Markdown / web pages** (MD, HTML) | PDF, DOCX, HTML / TXT / MD, **EPUB** — rendered, not the source code | | |
+| **E-books** (EPUB) | PDF, DOCX, TXT, MD, HTML | | |
+| **Subtitles** (SRT, VTT) | SRT ⇄ VTT, TXT | | |
+| **Archives** (ZIP, 7Z, TAR, GZ, **RAR** in) | ZIP, 7Z, **TAR**, **GZIP** | Extract | |
 | **Folders / anything else** | | Zip, 7Z | |
 
-Every wheel ends with a **File** ring: **Copy path**, **Show** (in its folder), **SHA-256** (checksum to the clipboard) and **Duplicate**.
+Every wheel ends with the **Actions** wheel (Santra's, plus extras): **Share** (the Windows share sheet), **Float** (a floating shelf you drag files out of), **Copy** (files to the clipboard), **Move**, **Copy path**, **Terminal**, **Show** in folder, **SHA-256**, **Duplicate**.
 
 ### The Print ring
 
