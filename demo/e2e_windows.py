@@ -138,7 +138,7 @@ def snapshot(folder: Path) -> set[str]:
     return {str(p.relative_to(folder)) for p in folder.rglob("*")}
 
 
-def new_files(folder: Path, before: set[str], timeout=15, busy_timeout=120) -> list[Path]:
+def new_files(folder: Path, before: set[str], timeout=60, busy_timeout=120) -> list[Path]:
     """New files (ignoring in-progress '.~*.part'), once their sizes stop changing. While a
     '.~*.part' file exists the app is still writing, so keep waiting (slow CI machines)."""
     start = time.time()
