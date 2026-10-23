@@ -52,6 +52,11 @@ DEFAULTS = {
     "excluded_apps": DEFAULT_EXCLUDED,
     "notifications": "all",
     "welcomed": False,
+    # updates
+    "update_auto": True,
+    "update_last": 0,            # when the last check ran (Unix time)
+    "update_skip": "",           # "Skip this version"
+    "last_version": "",          # the version that ran last: shows "Updated to …" once
 }
 
 # allowed values: anything else stored (hand-edited registry, older versions) reads as the default
@@ -67,7 +72,9 @@ CHOICES = {
     "pdf_dpi": {150, 200, 300},
     "notifications": {"all", "errors"},
 }
-RENAMED = {"theme": "wheel_style", "key_convert": "trigger"}     # older keys they're migrated from
+RENAMED = {"theme": "wheel_style", "key_convert": "trigger"}
+# written by the app itself, not by the user: Cancel in Settings leaves these alone
+VOLATILE = {"update_last", "update_skip", "last_version", "welcomed"}     # older keys they're migrated from
 
 
 class Settings:
@@ -442,10 +449,11 @@ class SettingsWindow(GlassWindow):
     changed = Signal()
     PAGES = ("Appearance", "Keys", "Sounds", "Saving", "Behaviour")
 
-    def __init__(self, settings: Settings, player: "sounds.Player | None" = None):
+    def __init__(self, settings: Settings, player: "sounds.Player | None" = None, updates=None):
         super().__init__("Settings", size=(860, 760))
         self.s = settings
         self.player = player
+        self.updates = updates          # updatectl.UpdateController (None in tests / previews)
         tabs = QHBoxLayout()
         self.tab_buttons = []
         for i, name in enumerate(self.PAGES):
@@ -523,7 +531,7 @@ class SettingsWindow(GlassWindow):
     # ------------------------------------------------------------ save / cancel
     def _take_snapshot(self) -> tuple:
         q = self.s.q
-        values = {k: q.value(k) for k in q.allKeys()}
+        values = {k: q.value(k) for k in q.allKeys() if k not in VOLATILE}
         system = (None, None)
         try:
             system = (autostart_enabled(), context_menu_enabled())
@@ -541,7 +549,7 @@ class SettingsWindow(GlassWindow):
         values, system = self._snapshot
         q = self.s.q
         for k in q.allKeys():
-            if k not in values:
+            if k not in values and k not in VOLATILE:
                 q.remove(k)
         for k, v in values.items():
             q.setValue(k, v)
@@ -1248,6 +1256,45 @@ class SettingsWindow(GlassWindow):
                 n.addWidget(glass_btn, r, 1)
                 r += 1
         lay.addLayout(n)
+
+        self._section(lay, "Updates")
+        u = self._grid()
+        self.upd_auto = QCheckBox("Check for updates automatically (once a day)")
+        self.upd_auto.setChecked(self.s.get("update_auto"))
+        self.upd_auto.toggled.connect(lambda on: self._save("update_auto", on))
+        u.addWidget(self.upd_auto, 0, 1)
+        row = QHBoxLayout()
+        self.upd_status = QLabel(self.updates.status if self.updates else f"Version {__version__}")
+        self.upd_status.setObjectName("dim")
+        self.upd_status.setWordWrap(True)
+        row.addWidget(self.upd_status, 1)
+        self.upd_check = QPushButton("Check now")
+        row.addWidget(self.upd_check)
+        self.upd_install = QPushButton("Install update")
+        self.upd_install.setObjectName("primary")
+        row.addWidget(self.upd_install)
+        u.addLayout(row, 1, 1)
+        u.addWidget(hint("Updates download from the GitHub release, are checked against their published "
+                         "SHA-256, and install in the background; ShiftWheel restarts by itself. Your "
+                         "settings, themes and sounds are kept."), 2, 1)
+        lay.addLayout(u)
+        if self.updates is not None:
+            self.upd_check.clicked.connect(lambda: self.updates.check(quiet=False))
+            self.upd_install.clicked.connect(lambda: self.updates.install())
+            self.updates.status_changed.connect(self._update_status)
+        else:
+            self.upd_check.setEnabled(False)
+        self._update_status(self.upd_status.text())
+
+    def _update_status(self, text: str):
+        try:
+            self.upd_status.setText(text)
+            rel = self.updates.available if self.updates else None
+            self.upd_install.setVisible(rel is not None)
+            if rel is not None:
+                self.upd_install.setText(f"Install {rel.version}")
+        except RuntimeError:          # the window was closed
+            pass
 
     # ------------------------------------------------------------ reset
     def _reset(self):

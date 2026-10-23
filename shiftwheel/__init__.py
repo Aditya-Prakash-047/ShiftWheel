@@ -1,6 +1,6 @@
 import os
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 # numpy's OpenBLAS reserves a work buffer per CPU thread at import: ~490 MB of committed memory
 # on a 16-thread CPU, for linear algebra ShiftWheel never does. One thread costs ~8 MB.

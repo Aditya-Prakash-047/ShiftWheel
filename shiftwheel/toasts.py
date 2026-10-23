@@ -85,6 +85,7 @@ class ToastCard(QWidget):
         self.spin = 0.0
         self.hover_btn = -1
         self.buttons: list[tuple[str, QRectF]] = []
+        self.actions: list[tuple[str, object]] = []     # (label, callback) for prompt cards
         self._fade = 0.0
         from .liquid import GlassStyle
         self.liquid = glass.LiquidBacking(self, 20, GlassStyle(blur=8, strength=12, bezel=16))
@@ -122,6 +123,13 @@ class ToastCard(QWidget):
     def info(self, title: str, detail: str, ms: int = 4500):
         self.spinner.stop()
         self.state, self.title, self.detail = "info", title, detail
+        self.life.start(ms)
+        self.update()
+
+    def prompt(self, title: str, detail: str, actions: list, ms: int = 30000):
+        """A card with buttons of its own: [(label, callback)]; a button closes the card."""
+        self.spinner.stop()
+        self.state, self.title, self.detail, self.actions = "info", title, detail, list(actions)
         self.life.start(ms)
         self.update()
 
@@ -166,7 +174,9 @@ class ToastCard(QWidget):
 
     def leaveEvent(self, e):
         self.hover_btn = -1
-        if self.state in ("done", "info"):
+        if self.actions:
+            self.life.start(15000)          # a question: give time to come back to it
+        elif self.state in ("done", "info"):
             self.life.start(2500)
         elif self.state == "error":
             self.life.start(4000)
@@ -195,6 +205,11 @@ class ToastCard(QWidget):
             self.dismiss()
 
     def _act(self, name: str):
+        for label, callback in self.actions:
+            if label == name:
+                self.dismiss()
+                callback()
+                return
         r = self.result
         if not r:
             return
@@ -300,9 +315,14 @@ class ToastCard(QWidget):
 
         # action buttons
         self.buttons = []
-        if self.state == "done" and self.result and self.result.outs:
+        names, labels = [], {}
+        if self.actions:
+            names = [label for label, _ in self.actions]
+            labels = {n: n for n in names}
+        elif self.state == "done" and self.result and self.result.outs:
             names = ["Open", "Show"] + (["Undo"] if getattr(self.result, "undoable", True) else [])
             labels = {"Open": "Open", "Show": "Show in folder", "Undo": "Undo"}
+        if names:
             f.setPixelSize(12)
             f.setBold(True)
             p.setFont(f)
@@ -360,4 +380,9 @@ class ToastStack:
     def error(self, title: str, detail: str) -> ToastCard:
         c = self.new()
         c.error(title, detail)
+        return c
+
+    def prompt(self, title: str, detail: str, actions: list, ms: int = 30000) -> ToastCard:
+        c = self.new()
+        c.prompt(title, detail, actions, ms)
         return c
