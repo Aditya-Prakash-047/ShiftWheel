@@ -138,17 +138,21 @@ def snapshot(folder: Path) -> set[str]:
     return {str(p.relative_to(folder)) for p in folder.rglob("*")}
 
 
-def new_files(folder: Path, before: set[str], timeout=15) -> list[Path]:
-    """New files (ignoring in-progress '.~*.part'), once their sizes stop changing."""
-    end = time.time() + timeout
+def new_files(folder: Path, before: set[str], timeout=15, busy_timeout=120) -> list[Path]:
+    """New files (ignoring in-progress '.~*.part'), once their sizes stop changing. While a
+    '.~*.part' file exists the app is still writing, so keep waiting (slow CI machines)."""
+    start = time.time()
 
     def current():
         now = snapshot(folder) - before
         return {n: (folder / n).stat().st_size for n in now
                 if (folder / n).is_file() and not Path(n).name.startswith(".~")}
-    while time.time() < end:
+
+    def busy():
+        return any(Path(n).name.startswith(".~") for n in snapshot(folder) - before)
+    while time.time() < start + (busy_timeout if busy() else timeout):
         a = current()
-        if a:
+        if a and not busy():
             time.sleep(0.8)
             b = current()
             if a == b:

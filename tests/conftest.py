@@ -14,6 +14,28 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
+@pytest.fixture(autouse=True)
+def _close_windows_after_each_test():
+    """Tool windows start timers and background jobs (filmstrips, previews, OCR). Left open,
+    they fire during later tests; finish the jobs and delete each test's windows instead."""
+    from PySide6.QtWidgets import QApplication
+    app = QApplication.instance()
+    before = {id(w) for w in app.topLevelWidgets()} if app else set()
+    yield
+    app = QApplication.instance()
+    if app is None:
+        return
+    from PySide6.QtCore import QCoreApplication, QEvent, QThreadPool
+    QThreadPool.globalInstance().waitForDone(60_000)
+    app.processEvents()
+    for w in app.topLevelWidgets():
+        if id(w) not in before:
+            w.close()
+            w.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+    app.processEvents()
+
+
 def _paste_warped(bg: np.ndarray, src: np.ndarray, corners) -> np.ndarray:
     import cv2
     h, w = src.shape[:2]

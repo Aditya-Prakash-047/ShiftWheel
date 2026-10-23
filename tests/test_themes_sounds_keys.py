@@ -223,3 +223,20 @@ def test_ui_tokens_stylesheet():
         assert glass.ink().name() == look.ui.text.name() and glass.window_radius() == 18
     finally:
         glass.set_ui(None, True)
+
+
+def test_same_key_goes_round_every_wheel():
+    """Shift, Shift, Shift: Convert → Tools → Print (the key pressed last keeps cycling);
+    a different key jumps to its own wheel."""
+    from types import SimpleNamespace
+
+    from shiftwheel.app import ShiftWheelApp
+    m = radial.RadialMenu(lambda ps: {}, lambda ps: "")
+    m.rings = {r: [radial.Item("A")] for r in ("Convert", "Tools", "Print", "Actions")}
+    m.ring_names = list(m.rings)
+    app = SimpleNamespace(menu=m, settings=SimpleNamespace(get=lambda k: True), _last_key_ring="Convert")
+    seen = []
+    for key_ring in ("Convert", "Convert", "Convert", "Tools", "Tools", "Convert"):
+        ShiftWheelApp._switch_ring(app, key_ring)
+        seen.append(m.ring_names[m.ring_idx])
+    assert seen == ["Tools", "Print", "Actions", "Tools", "Print", "Convert"]

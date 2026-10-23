@@ -262,6 +262,7 @@ class ShiftWheelApp(QObject):
 
     def _drag_popup(self, pos, ring: str = ""):
         self.apply_look()        # picks up a Windows accent/mode change since last time
+        self._last_key_ring = ring
         self.menu.want_ring = ring
         self.menu.popup(pos)
         self.sounds.play("open")
@@ -269,7 +270,11 @@ class ShiftWheelApp(QObject):
     def _switch_ring(self, ring: str):
         m = self.menu
         cur = m.ring_names[m.ring_idx] if m.ring_names else ""
-        if ring == cur or ring not in m.ring_names:
+        # the key pressed last keeps going round (Shift, Shift, Shift: Convert → Tools → Print),
+        # a different key jumps to its own wheel
+        again = ring == cur or ring == getattr(self, "_last_key_ring", "")
+        self._last_key_ring = ring
+        if again or ring not in m.ring_names:
             if self.settings.get("cycle_rings") or ring not in m.ring_names:
                 m.next_ring()
         else:
