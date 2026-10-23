@@ -11,10 +11,12 @@ import hashlib
 import sys
 import time
 import uuid
-from ctypes import POINTER, WINFUNCTYPE, byref, c_int, c_uint, c_void_p, c_wchar_p
+from ctypes import POINTER, byref, c_int, c_uint, c_void_p, c_wchar_p
 from pathlib import Path
 
-HRESULT = ctypes.HRESULT
+# Windows-only at run time; the IID maths below also import (and are tested) elsewhere
+WINFUNCTYPE = getattr(ctypes, "WINFUNCTYPE", ctypes.CFUNCTYPE)
+HRESULT = getattr(ctypes, "HRESULT", ctypes.c_long)
 S_OK, E_NOINTERFACE, E_FAIL = 0, -2147467262, -2147467259
 
 
