@@ -5,6 +5,7 @@ from __future__ import annotations
 import ctypes
 import os
 import sys
+from pathlib import Path
 
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QImage, QLinearGradient,
@@ -177,10 +178,11 @@ QMenu::item:selected {{ background: rgba(255,255,255,0.15); }}
 """
 
 
-# ---------------------------------------------------------------- light / dark
-# Windows and notifications are glass in either mode: dark glass with white text, or light
-# glass with ink text. The app sets this from Settings → Appearance (or Windows' own mode).
-_MODE = {"dark": True, "accent": None}
+# ---------------------------------------------------------------- light / dark, design tokens
+# Windows, notifications and menus follow the theme: themes.Ui tokens become one stylesheet
+# and solid surfaces. The Liquid glass theme keeps the original glass painting (dark glass
+# with white text, or light glass with ink text).
+_MODE = {"dark": True, "accent": None, "ui": None}
 INK = (29, 26, 38)
 
 
@@ -189,20 +191,52 @@ def set_mode(dark: bool, accent: QColor | None = None) -> None:
     _MODE["accent"] = QColor(accent) if accent is not None else None
 
 
+def set_ui(ui, dark: bool) -> None:
+    """Design tokens (themes.Ui) for every window, notification and menu created from now on."""
+    _MODE["ui"] = ui
+    _MODE["dark"] = bool(dark)
+    if ui is not None and not ui.glass:
+        _MODE["accent"] = QColor(ui.accent)
+
+
+def tokens():
+    """The current themes.Ui, or None for the glass look."""
+    ui = _MODE["ui"]
+    return None if ui is None or ui.glass else ui
+
+
 def is_dark() -> bool:
     return _MODE["dark"]
 
 
 def ink(alpha: int = 255) -> QColor:
-    """Text / line colour for glass surfaces in the current mode."""
+    """Text / line colour for surfaces in the current look."""
+    ui = tokens()
+    if ui is not None:
+        c = QColor(ui.text)
+        c.setAlpha(alpha)
+        return c
     return QColor(255, 255, 255, alpha) if _MODE["dark"] else QColor(*INK, alpha)
 
 
+def accent(alpha: int = 255) -> QColor:
+    ui = tokens()
+    c = QColor(ui.accent) if ui is not None else QColor(_MODE["accent"] or ACCENT_B)
+    c.setAlpha(alpha)
+    return c
+
+
 def good_color() -> QColor:
+    ui = tokens()
+    if ui is not None:
+        return QColor(ui.good)
     return QColor("#8dffb8") if _MODE["dark"] else QColor("#0f7a45")
 
 
 def warn_color() -> QColor:
+    ui = tokens()
+    if ui is not None:
+        return QColor(ui.warn)
     return QColor("#ffd36b") if _MODE["dark"] else QColor("#a35f00")
 
 
@@ -219,6 +253,34 @@ def surface_tint(kind: str, error: bool = False) -> QColor:
         kind, QColor(248, 246, 251, 238))
 
 
+def paint_surface(p: QPainter, path: QPainterPath, kind: str = "window", error: bool = False,
+                  liquid: bool = False, acrylic: bool = False) -> None:
+    """A window ('window') or notification ('card') background in the current look."""
+    ui = tokens()
+    if ui is None:
+        tint = surface_tint("liquid" if liquid else "acrylic" if acrylic else "solid", error)
+        paint_glass(p, path, tint=tint, rainbow_alpha=170 if kind == "card" else 150)
+        return
+    fill = QColor(ui.window if kind == "window" else ui.surface)
+    fill.setAlpha(255)
+    if error:
+        bad = QColor(ui.bad)
+        fill = QColor((fill.red() * 5 + bad.red()) // 6, (fill.green() * 5 + bad.green()) // 6,
+                      (fill.blue() * 5 + bad.blue()) // 6)
+    p.save()
+    p.setRenderHint(QPainter.Antialiasing)
+    p.fillPath(path, fill)
+    p.setPen(QPen(QColor(ui.bad) if error else QColor(ui.border), 1))
+    p.setBrush(Qt.NoBrush)
+    p.drawPath(path)
+    p.restore()
+
+
+def window_radius() -> int:
+    ui = tokens()
+    return ui.radius if ui is not None else 18
+
+
 def acrylic_tint() -> int:
     """ABGR tint for the Windows blur-behind."""
     return 0x40281E28 if _MODE["dark"] else 0x70FBF7F9
@@ -231,10 +293,111 @@ def _accent_stops() -> tuple[str, str, str]:
     return a.lighter(125).name(), a.name(), a.darker(118).name()
 
 
+def _rgba(c: QColor, alpha: float | None = None) -> str:
+    a = c.alphaF() if alpha is None else alpha
+    return f"rgba({c.red()},{c.green()},{c.blue()},{a:.3f})"
+
+
+_TOKEN_QSS = """
+* {{ color: {text}; font-family: "{font}", sans-serif; font-size: 10pt; }}
+QWidget#glassRoot {{ background: transparent; }}
+QLabel#title {{ font-size: 11pt; font-weight: 600; }}
+QLabel#dim, QLabel.dim {{ color: {dim}; font-size: 9pt; }}
+QLabel#section {{ color: {dim}; font-size: 8.5pt; font-weight: 600; letter-spacing: 1px; }}
+QPushButton {{ background: {surface}; border: 1px solid {border}; border-radius: {cr}px;
+  padding: 6px 14px; min-height: 18px; }}
+QPushButton:hover {{ background: {hover}; }}
+QPushButton:pressed {{ background: {border}; }}
+QPushButton:disabled {{ color: {dim}; }}
+QPushButton:checked {{ background: {accent}; color: {on_accent}; border: 1px solid {accent}; }}
+QPushButton#primary {{ background: {accent}; color: {on_accent}; border: 1px solid {accent_dark};
+  font-weight: 600; padding: 7px 18px; }}
+QPushButton#primary:hover {{ background: {accent_hover}; }}
+QPushButton#primary:disabled {{ background: {border}; color: {dim}; border-color: {border}; }}
+QPushButton#chrome {{ background: transparent; border: none; padding: 2px 8px; font-size: 11pt; border-radius: 6px; }}
+QPushButton#chrome:hover {{ background: #e5484d; color: #ffffff; }}
+QPushButton#swatch {{ border-radius: 12px; padding: 0; min-width: 24px; max-width: 24px; min-height: 24px; max-height: 24px; }}
+QPushButton#swatch:checked {{ border: 2px solid {text}; }}
+QSlider::groove:horizontal {{ height: 4px; background: {border}; border-radius: 2px; }}
+QSlider::sub-page:horizontal {{ background: {accent}; border-radius: 2px; }}
+QSlider::handle:horizontal {{ background: #ffffff; width: 16px; height: 16px; margin: -6px 0; border-radius: 8px;
+  border: 1px solid {border_strong}; }}
+QSpinBox, QDoubleSpinBox, QLineEdit, QComboBox, QPlainTextEdit, QTextEdit {{ background: {input}; border: 1px solid {border};
+  border-radius: {cr}px; padding: 4px 8px; selection-background-color: {accent}; selection-color: {on_accent}; }}
+QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus, QPlainTextEdit:focus {{ border: 1px solid {accent}; }}
+QComboBox QAbstractItemView {{ background: {surface}; border: 1px solid {border}; outline: none;
+  selection-background-color: {hover}; selection-color: {text}; }}
+QFrame#card {{ background: {surface}; border: 1px solid {border}; border-radius: 12px; }}
+QLabel#big {{ font-size: 17pt; font-weight: 700; }}
+QLabel#good {{ color: {good}; font-weight: 600; }}
+QLabel#warn {{ color: {warn}; font-weight: 600; }}
+QCheckBox::indicator, QRadioButton::indicator {{ width: 16px; height: 16px; border-radius: 5px; border: 1px solid {border_strong};
+  background: {input}; }}
+QRadioButton::indicator {{ border-radius: 8px; }}
+QCheckBox::indicator:checked, QRadioButton::indicator:checked {{ background: {accent}; border: 1px solid {accent}; }}
+QTableWidget, QListWidget {{ background: {input}; border: 1px solid {border}; border-radius: 8px; gridline-color: {border}; }}
+QListWidget::item:selected {{ background: {hover}; color: {text}; }}
+QHeaderView {{ background: transparent; }}
+QTableCornerButton::section {{ background: transparent; border: none; }}
+QHeaderView::section {{ background: {surface}; border: none; padding: 4px; font-weight: 600; }}
+QScrollBar:vertical {{ background: transparent; width: 8px; }}
+QScrollBar::handle:vertical {{ background: {border_strong}; border-radius: 4px; min-height: 30px; }}
+QScrollBar:horizontal {{ background: transparent; height: 8px; }}
+QScrollBar::handle:horizontal {{ background: {border_strong}; border-radius: 4px; min-width: 30px; }}
+QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; width: 0; }}
+QToolTip {{ background: {surface}; color: {text}; border: 1px solid {border}; border-radius: 6px; padding: 4px; }}
+QMenu {{ background: {surface}; border: 1px solid {border}; border-radius: 10px; padding: 4px; }}
+QMenu::item {{ padding: 6px 18px; border-radius: 6px; }}
+QMenu::item:selected {{ background: {hover}; }}
+QMenu::separator {{ height: 1px; background: {border}; margin: 4px 8px; }}
+QProgressBar {{ background: {border}; border: none; border-radius: 3px; height: 6px; text-align: center; color: transparent; }}
+QProgressBar::chunk {{ background: {accent}; border-radius: 3px; }}
+"""
+
+
+def _ui_asset(kind: str, color: QColor) -> str:
+    """A small tick / chevron PNG in `color`, for stylesheet indicators (cached on disk)."""
+    folder = Path(os.environ.get("LOCALAPPDATA") or Path.home()) / "ShiftWheel" / "ui"
+    f = folder / f"{kind}-{color.name(QColor.HexArgb)[1:]}.png"
+    if f.exists():
+        return f.as_posix()
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+        img = QImage(32, 32, QImage.Format_ARGB32_Premultiplied)
+        img.fill(Qt.transparent)
+        p = QPainter(img)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setPen(QPen(color, 4.2 if kind == "check" else 3.4, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+        if kind == "check":
+            p.drawPolyline([QPointF(7, 16.5), QPointF(13.5, 23), QPointF(25, 9.5)])
+        else:
+            p.drawPolyline([QPointF(9, 12.5), QPointF(16, 19.5), QPointF(23, 12.5)])
+        p.end()
+        img.save(str(f))
+    except Exception:
+        return ""
+    return f.as_posix()
+
+
 def qss() -> str:
-    """The stylesheet for the current mode and accent, with a font family that is really
-    installed (see util.ui_family)."""
+    """The stylesheet for the current look: design tokens, or the glass look (with its mode and
+    accent), using a font family that is really installed (see util.ui_family)."""
     from .util import ui_family
+    ui = tokens()
+    if ui is not None:
+        acc = QColor(ui.accent)
+        border_strong = QColor(ui.border).lighter(135) if _MODE["dark"] else QColor(ui.border).darker(122)
+        return _TOKEN_QSS.format(
+            text=_rgba(ui.text), dim=_rgba(ui.text_dim), surface=_rgba(ui.surface), hover=_rgba(ui.hover),
+            border=_rgba(ui.border), border_strong=_rgba(border_strong), input=_rgba(ui.input),
+            accent=acc.name(), accent_hover=acc.lighter(110).name(), accent_dark=acc.darker(115).name(),
+            on_accent=_rgba(ui.on_accent), good=_rgba(ui.good), warn=_rgba(ui.warn), cr=ui.control_radius,
+            font=ui_family(False)) + (
+            "QCheckBox::indicator:checked {{ image: url({check}); }}\n"
+            "QComboBox::drop-down {{ border: none; width: 26px; background: transparent; }}\n"
+            "QComboBox::down-arrow {{ image: url({chev}); width: 12px; height: 12px; }}\n"
+            "QSpinBox::up-button, QSpinBox::down-button {{ border: none; background: transparent; width: 18px; }}\n"
+        ).format(check=_ui_asset("check", QColor(ui.on_accent)), chev=_ui_asset("chevron", QColor(ui.text_dim)))
     s = _QSS.replace("@FONT@", ui_family(False))
     a, b, c = _accent_stops()
     s = s.replace(ACCENT_A, a).replace(ACCENT_B, b).replace(ACCENT_C, c)

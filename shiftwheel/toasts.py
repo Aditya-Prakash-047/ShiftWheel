@@ -219,15 +219,13 @@ class ToastCard(QWidget):
         p.setRenderHint(QPainter.Antialiasing)
         p.setRenderHint(QPainter.TextAntialiasing)
         r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
-        path = glass.rounded_rect_path(r, 20)
+        path = glass.rounded_rect_path(r, min(20, glass.window_radius() + 2))
         img = self.liquid.image
         err = self.state == "error"
-        if img is not None and not img.isNull() and img.size() == self.size():
+        live = glass.tokens() is None and img is not None and not img.isNull() and img.size() == self.size()
+        if live:
             p.drawImage(0, 0, img)
-            tint = glass.surface_tint("liquid", err)
-        else:
-            tint = glass.surface_tint("solid", err)
-        glass.paint_glass(p, path, tint=tint, rainbow_alpha=170)
+        glass.paint_surface(p, path, "card", error=err, liquid=live)
 
         x = 16
         # leading visual: spinner / thumbnail / icon
@@ -235,7 +233,8 @@ class ToastCard(QWidget):
         if self.state == "working":
             p.setPen(QPen(glass.ink(50), 4))
             p.drawEllipse(lead.center(), 16, 16)
-            p.setPen(glass.iridescent_pen(lead.center(), 4, 255, angle=-self.spin))
+            p.setPen(glass.iridescent_pen(lead.center(), 4, 255, angle=-self.spin) if glass.tokens() is None
+                     else QPen(glass.accent(), 4, Qt.SolidLine, Qt.RoundCap))
             p.drawArc(QRectF(lead.center().x() - 16, lead.center().y() - 16, 32, 32), int(-self.spin * 16), 100 * 16)
             x = 82
         elif self.thumb is not None:
@@ -303,7 +302,7 @@ class ToastCard(QWidget):
         # action buttons
         self.buttons = []
         if self.state == "done" and self.result and self.result.outs:
-            names = ["Open", "Show", "Undo"]
+            names = ["Open", "Show"] + (["Undo"] if getattr(self.result, "undoable", True) else [])
             labels = {"Open": "Open", "Show": "Show in folder", "Undo": "Undo"}
             f.setPixelSize(12)
             f.setBold(True)

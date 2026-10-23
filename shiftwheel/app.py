@@ -14,10 +14,10 @@ from PySide6.QtGui import (QAction, QColor, QCursor, QDesktopServices, QGuiAppli
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QFileDialog, QMenu, QSystemTrayIcon, QWidget
 
-from . import (__version__, archive, convert, fileops, glass, imaging, media, mediawin, ocr, ocrwin, office,
-               printwin, report, saveas, themes, tools)
+from . import (__version__, archive, convert, extras, fileops, glass, hotkey, imaging, media, mediawin, ocr,
+               ocrwin, office, printwin, report, saveas, sounds, themes, tools, tools2)
 from .radial import Item, RadialMenu
-from .settings import Settings, SettingsWindow, WelcomeWindow, TRIGGERS
+from .settings import KEY_LABEL, KEY_VK, Settings, SettingsWindow, WelcomeWindow
 from .toasts import ToastStack
 from .trigger import ShiftWheelWatcher
 from .util import UserError, call_with_progress, category, file_size, human_size, keep, release
@@ -31,13 +31,15 @@ IS_MAC = sys.platform == "darwin"
 from .handoff import ipc_name
 IPC_NAME = ipc_name()
 
-GLYPHS = {"Compress": "⇲", "Metadata": "ⓘ", "Redact": "▮", "Crop": "⌗", "Edit": "☼",
+GLYPHS = {"QR code": "▦", "Collage": "▚", "Organize": "▤", "Channels": "◐", "Bleep": "♪", "Visualize": "∿",
+          "Silence": "✂", "Compress": "⇲", "Metadata": "ⓘ", "Redact": "▮", "Crop": "⌗", "Edit": "☼",
           "Annotate": "✎", "Add BG": "▣", "Resize": "⤢", "Split": "✂", "Rotate": "⟳",
           "Merge": "⧉", "Protect": "⚿", "Extract": "⧈",
           "ID Card": "▤", "Passport": "☺", "Scan": "⬚", "Print": "⎙",
           "Text": "¶", "OCR": "¶", "Zip": "▦", "7Z": "▦",
           "Trim": "✂", "GIF": "◎", "Snapshot": "◫", "Mute": "⊘", "Speed": "»", "Normalize": "≋",
-          "Copy path": "⎘", "Show": "⌕", "SHA-256": "#", "Duplicate": "❐"}
+          "Copy path": "⎘", "Show": "⌕", "SHA-256": "#", "Duplicate": "❐", "Copy": "⧉", "Move": "➜",
+          "Terminal": ">_", "Share": "⇪", "Float": "◳"}
 
 HINTS = {
     "Compress": "Shrink file size", "Metadata": "View · remove GPS", "Redact": "Hide private info",
@@ -51,20 +53,30 @@ HINTS = {
     "Text": "Copy text from photo", "OCR": "Make it searchable", "Zip": "Compress into .zip",
     "7Z": "Smaller .7z archive",
     "Mute": "Remove the sound", "Speed": "0.25× – 4×", "Normalize": "Even out loudness",
-    "Copy path": "To the clipboard", "Show": "Open its folder", "SHA-256": "Checksum → clipboard",
-    "Duplicate": "Make a copy",
+    "QR code": "Read it · copy the text", "Collage": "Grid, row, featured…", "Organize": "Reorder · rotate · remove",
+    "Channels": "Mono · stereo · L/R", "Bleep": "Hide words", "Visualize": "Audio → MP4",
+    "Silence": "Trim quiet start / end",
+    "Copy path": "Path as text", "Show": "Open its folder", "SHA-256": "Checksum → clipboard",
+    "Duplicate": "Make a copy", "Copy": "Paste it anywhere", "Move": "To another folder",
+    "Terminal": "Open a terminal here", "Share": "Windows share", "Float": "Keep it handy",
 }
-FILE_ACTIONS = ["Copy path", "Show", "SHA-256", "Duplicate"]
+# Santra's Actions wheel (AirDrop → Windows Share), plus ShiftWheel's extras
+FILE_ACTIONS = ["Share", "Float", "Copy", "Move", "Copy path", "Terminal", "Show", "SHA-256", "Duplicate"]
 FORMAT_HINTS = {"JPG": "Small, universal", "PNG": "Lossless · transparency", "WEBP": "Smallest for web",
                 "HEIC": "iPhone format", "TIFF": "Print · archival", "AVIF": "Next-gen, tiny",
                 "BMP": "Uncompressed", "PDF": "Document", "ICO": "Windows icon", "GIF": "Legacy web",
-                "DOCX": "Editable Word", "TXT": "Plain text"}
+                "DOCX": "Editable Word", "TXT": "Plain text", "MD": "Markdown", "HTML": "Web page",
+                "EPUB": "E-book", "XLSX": "Tables → Excel", "PPTX": "Pages → slides", "SRT": "SubRip subtitles",
+                "VTT": "Web subtitles", "SVG": "Vector"}
 
-IMAGE_TOOLS = ["Compress", "Resize", "Crop", "Edit", "Annotate", "Redact", "Add BG", "Metadata", "Text"]
-PDF_TOOLS = ["Compress", "Split", "Rotate", "Protect", "Extract", "Metadata", "OCR"]
-VIDEO_TOOLS = ["Compress", "Trim", "GIF", "Snapshot", "Rotate", "Mute", "Speed"]
-AUDIO_TOOLS = ["Trim", "Compress", "Normalize", "Speed"]
-MEDIA_HINTS = {"Compress": "Smaller MP4 · target size", "Rotate": "Turn 90° clockwise", "Merge": "Join in order"}
+# clockwise from 12 o'clock in Santra's order, then ShiftWheel's extras
+IMAGE_TOOLS = ["Compress", "Metadata", "Edit", "Annotate", "Add BG", "Crop", "Redact", "Resize", "Text", "QR code"]
+PDF_TOOLS = ["Compress", "Split", "Rotate", "Organize", "Protect", "Extract", "Metadata", "OCR"]
+VIDEO_TOOLS = ["Compress", "Trim", "Crop", "Split", "Snapshot", "Speed", "Mute", "Redact", "Rotate", "Metadata"]
+AUDIO_TOOLS = ["Trim", "Compress", "Normalize", "Speed", "Channels", "Bleep", "Visualize", "Silence", "Metadata"]
+MEDIA_HINTS = {"Compress": "Smaller MP4 · target size", "Rotate": "Turn 90° clockwise", "Merge": "Join in order",
+               "Crop": "Reframe · keeps sound", "Split": "Equal parts or cut points", "Redact": "Blur or cover areas",
+               "Metadata": "Title · artist · year"}
 IMAGE_PRINT = ["ID Card", "Passport", "Scan", "Print"]
 PDF_PRINT = ["Print", "ID Card", "Scan"]
 PRINT_WINDOWS = {"ID Card": printwin.IDCardWindow, "Passport": printwin.PassportWindow,
@@ -164,24 +176,36 @@ class ShiftWheelApp(QObject):
     def __init__(self, qapp: QApplication):
         super().__init__()
         self.qapp = qapp
+        for problem in themes.load_user_themes():         # imported themes, before settings read "theme"
+            print("theme skipped:", problem, flush=True)
         self.settings = Settings()
         self.settings.apply()
         self.pool = QThreadPool.globalInstance()
         self.windows: list[QWidget] = []
         self.toasts = ToastStack()
         self.menu = RadialMenu(self.build_rings, self.describe)
+        self.sounds = sounds.Player()
+        self.menu.activated.connect(lambda *_: self.sounds.play("select"))
         self.menu.activated.connect(self.run_item)
+        self.menu.highlighted.connect(lambda *_: self.sounds.play("highlight"))
+        self.menu.ring_changed.connect(lambda *_: self.sounds.play("switch"))
+        self.menu.ring_hint = self._ring_key_label
 
         # the watcher only manages menus it opened (drag mode); click-mode menus (tray, right-click,
         # Send To) must not be closed just because no mouse button is held
         self.watcher = ShiftWheelWatcher(lambda: self.menu.isVisible() and not self.menu.click_mode,
                                         lambda: self.menu.got_drag, self)
-        self.watcher.set_key(self.settings.get("trigger"))
-        self.watcher.excluded = self.settings.excluded_apps()
+        self._apply_keys()
         self.watcher.show_menu.connect(self._drag_popup)
-        self.watcher.toggle_ring.connect(self.menu.next_ring)
+        self.watcher.switch_ring.connect(self._switch_ring)
         self.watcher.hide_menu.connect(self.menu.close_menu)
         self.watcher.start()
+        self.hotkey = hotkey.GlobalHotkey(qapp, self)
+        self.hotkey.pressed.connect(self._hotkey_pressed)
+        if not self.hotkey.set(self.settings.get("open_hotkey")):
+            QTimer.singleShot(1200, lambda: self.toasts.error(
+                "Shortcut unavailable", f"{self.settings.get('open_hotkey')} is used by another app. "
+                                        "Pick another in Settings → Keys."))
 
         # files handed over by "Send to", the right-click menu, or a second launch
         self._pending: list[str] = []
@@ -209,24 +233,57 @@ class ShiftWheelApp(QObject):
         self.apply_look()
         # "Match Windows": follow light/dark live
         self.qapp.styleHints().colorSchemeChanged.connect(lambda *_: self.apply_look())
+        QTimer.singleShot(1500, self.sounds.preload)       # decode sounds off the start-up path
         self.tray.setContextMenu(m)
         self.tray.activated.connect(self._tray_click)
         self.tray.show()
 
     def apply_look(self):
-        """Theme, light/dark, accent and size → the wheel, windows and notifications."""
+        """Theme (with its customisations), light/dark and size → the wheel, every window,
+        the notifications, the tray menu and the sounds."""
         s = self.settings
-        self.menu.set_look(s.palette(), s.get("wheel_size") / 100)
-        accent = None if s.get("accent") == "theme" else themes.accent_color(s.get("theme"), s.get("accent"))
-        glass.set_mode(themes.is_dark(s.get("appearance")), accent)
+        look = s.look()
+        self.menu.set_look(look, s.get("wheel_size") / 100)
+        glass.set_mode(look.dark, look.accent if s.custom(s.get("theme")).get("accent") else None)
+        glass.set_ui(look.ui, look.dark)
         self.tray_menu.setStyleSheet(glass.QSS)
+        s.configure_sounds(self.sounds)
 
-    def _drag_popup(self, pos):
+    def _apply_keys(self):
+        self.watcher.set_bindings(self.settings.ring_keys(), KEY_VK)
+        self.watcher.excluded = self.settings.excluded_apps()
+
+    def _ring_key_label(self, ring: str) -> str:
+        key = self.settings.ring_keys().get(ring)
+        cur = self.menu.ring_names[self.menu.ring_idx] if self.menu.ring_names else ""
+        if key is None and self.settings.get("cycle_rings"):
+            key = self.settings.ring_keys().get(cur)       # the same key again cycles
+        return KEY_LABEL.get(key, "") if key else ""
+
+    def _drag_popup(self, pos, ring: str = ""):
         self.apply_look()        # picks up a Windows accent/mode change since last time
+        self.menu.want_ring = ring
         self.menu.popup(pos)
+        self.sounds.play("open")
+
+    def _switch_ring(self, ring: str):
+        m = self.menu
+        cur = m.ring_names[m.ring_idx] if m.ring_names else ""
+        if ring == cur or ring not in m.ring_names:
+            if self.settings.get("cycle_rings") or ring not in m.ring_names:
+                m.next_ring()
+        else:
+            m.set_ring(ring)
+
+    def _hotkey_pressed(self):
+        files = [f for f in hotkey.selected_paths() if os.path.exists(f)]
+        if files:
+            self.show_click_menu(files)
+            self.sounds.play("open")
 
     def trigger_label(self) -> str:
-        return dict(TRIGGERS).get(self.settings.get("trigger"), "Shift")
+        keys = self.settings.ring_keys()
+        return KEY_LABEL.get(keys.get("Convert") or next(iter(keys.values()), "shift"), "Shift")
 
     # ------------------------------------------------------------ IPC
     def _ipc(self):
@@ -283,9 +340,9 @@ class ShiftWheelApp(QObject):
         return human_size(file_size(paths[0]))
 
     def build_rings(self, paths: list[str]) -> dict[str, list[Item]]:
-        """Convert → Tools → Print (what fits the file), then the File ring for anything."""
+        """Convert → Tools → Print (what fits the file), then the Actions ring for anything."""
         rings = ShiftWheelApp._file_rings(self, paths)
-        rings["File"] = [Item(n, GLYPHS[n], key=f"file:{n}", hint=HINTS[n]) for n in FILE_ACTIONS]
+        rings["Actions"] = [Item(n, GLYPHS[n], key=f"file:{n}", hint=HINTS[n]) for n in FILE_ACTIONS]
         return rings
 
     def _file_rings(self, paths: list[str]) -> dict[str, list[Item]]:
@@ -305,8 +362,8 @@ class ShiftWheelApp(QObject):
         if cat == "archive":
             k = archive.kind(paths[0])
             return {"Tools": [Item("Extract", GLYPHS["Extract"], key="archive:Extract", hint="Unpack here")] +
-                    [Item(t, key=f"archive:{t}", hint=f"Convert to .{t.lower()}") for t in archive.ARCHIVE_TARGETS
-                     if t.lower() != k]}
+                    [Item(t, key=f"archive:{t}", hint=f"Convert to .{archive.EXT[t]}") for t in archive.ARCHIVE_TARGETS
+                     if t != archive.KIND_TARGET.get(k)]}
         ext = Path(paths[0]).suffix
         same = [p for p in paths if category(p) == cat]
         if cat in ("video", "audio"):
@@ -325,7 +382,8 @@ class ShiftWheelApp(QObject):
             convert_items.append(Item(t, key=f"convert:{t}", hint=hint))
         rings: dict[str, list[Item]] = {"Convert": convert_items}
         if cat == "image":
-            rings["Tools"] = [Item(n, GLYPHS[n], key=f"tool:{n}", hint=HINTS[n]) for n in IMAGE_TOOLS]
+            names = IMAGE_TOOLS + (["Collage"] if len(same) > 1 else [])
+            rings["Tools"] = [Item(n, GLYPHS[n], key=f"tool:{n}", hint=HINTS[n]) for n in names]
         elif cat == "pdf":
             names = PDF_TOOLS[:3] + (["Merge"] if len(same) > 1 else []) + PDF_TOOLS[3:]
             rings["Tools"] = [Item(n, GLYPHS[n], key=f"tool:{n}", hint=HINTS[n]) for n in names]
@@ -371,6 +429,28 @@ class ShiftWheelApp(QObject):
             return
         if name == "Text" and cat == "image":
             self._open_tool("Text", lambda ps, n: ocrwin.ExtractTextWindow(ps[0], n), paths)
+            return
+        if name == "QR code" and cat == "image":
+            found = {}
+
+            def read(progress=None):
+                found["t"] = [t for p in paths for t in extras.read_qr(p)]
+                if not found["t"]:
+                    raise UserError("No QR code found in this image.")
+                return []
+
+            def show(_r):
+                text = "\n".join(found["t"])
+                QGuiApplication.clipboard().setText(text)
+                self.toasts.info("QR code copied" if len(found["t"]) == 1 else f"{len(found['t'])} QR codes copied",
+                                 text[:300])
+            self.submit("tool:QR", paths, read, "Reading QR code…", on_done=show)
+            return
+        if name == "Collage" and cat == "image":
+            self._open_tool(name, tools2.CollageWindow, paths)
+            return
+        if name == "Organize" and cat == "pdf":
+            self._open_tool(name, lambda ps, n: tools2.OrganizePdfWindow(ps[0], n), paths)
             return
         if name == "OCR" and cat == "pdf":
             self.submit("tool:OCR", paths,
@@ -464,6 +544,15 @@ class ShiftWheelApp(QObject):
             self._open_tool(name, lambda ps, n: mediawin.TrimWindow(ps[0], n, mode), paths)
         elif name == "Speed":
             self._open_tool(name, lambda ps, n: mediawin.SpeedWindow(ps[0], n), paths)
+        elif name in ("Crop", "Split", "Redact", "Metadata", "Channels", "Bleep", "Visualize"):
+            cls = {"Crop": tools2.VideoCropWindow, "Split": tools2.SplitWindow, "Redact": tools2.RedactVideoWindow,
+                   "Metadata": tools2.MetadataEditWindow, "Channels": tools2.ChannelsWindow,
+                   "Bleep": tools2.BleepWindow, "Visualize": tools2.VisualizerWindow}[name]
+            self._open_tool(name, lambda ps, n: cls(ps[0], n), paths)
+        elif name == "Silence":
+            self.submit("tool:Silence", paths,
+                        lambda progress=None: [extras.trim_silence(p, progress=progress) for p in paths],
+                        "Trimming silence…")
 
     def run_file_action(self, name: str, paths: list[str]):
         if name == "Copy path":
@@ -472,6 +561,39 @@ class ShiftWheelApp(QObject):
             self.toasts.info("Path copied", text if len(paths) == 1 else f"{len(paths)} paths, one per line")
         elif name == "Show":
             fileops.reveal(paths[0])
+        elif name == "Copy":
+            # files on the clipboard: paste them in Explorer, Mail, chat apps…
+            from PySide6.QtCore import QMimeData
+            md = QMimeData()
+            md.setUrls([QUrl.fromLocalFile(p) for p in paths])
+            md.setData('application/x-qt-windows-mime;value="Preferred DropEffect"', b"\x01\x00\x00\x00")
+            QGuiApplication.clipboard().setMimeData(md)
+            self.toasts.info("Copied", f"{len(paths)} item{'s' if len(paths) != 1 else ''} · paste anywhere")
+        elif name == "Move":
+            folder = QFileDialog.getExistingDirectory(None, "Move to…", str(Path(paths[0]).parent))
+            if folder:
+                self.submit("tool:Move", paths, lambda: fileops.move_to(paths, folder), "Moving…",
+                            extra=f"to {folder}")
+        elif name == "Terminal":
+            fileops.open_terminal(paths[0])
+        elif name == "Share":
+            try:
+                fileops.share(paths[0])
+            except Exception as e:  # noqa: BLE001
+                self.toasts.error("Couldn't open Share", friendly_error(e))
+        elif name == "Float":
+            from .shelf import FloatShelf
+            shelf = getattr(self, "_shelf", None)
+            try:
+                alive = shelf is not None and shelf.isVisible()
+            except RuntimeError:
+                alive = False
+            if not alive:
+                shelf = self._shelf = FloatShelf()
+                self.open_window(shelf)
+                shelf.pin("right")
+            shelf.add(paths)
+            shelf.raise_()
         elif name == "Duplicate":
             self.submit("tool:Duplicate", paths, lambda: [fileops.duplicate(p) for p in paths], "Duplicating…")
         elif name == "SHA-256":
@@ -524,6 +646,7 @@ class ShiftWheelApp(QObject):
         def failed(msg):
             release(job)
             state["finished"] = True
+            self.sounds.play("error")
             card = state["card"] or self.toasts.new()
             card.error("Couldn't finish", msg)
 
@@ -555,6 +678,7 @@ class ShiftWheelApp(QObject):
         self._finish(r, card)
 
     def _finish(self, r, card):
+        self.sounds.play("done")
         after = self.settings.get("after_save")
         if r.outs and Path(r.outs[0]).exists():
             if after == "open":
@@ -585,14 +709,16 @@ class ShiftWheelApp(QObject):
         self.menu.activateWindow()
 
     def open_settings(self):
-        w = SettingsWindow(self.settings)
+        w = SettingsWindow(self.settings, self.sounds)
         w.changed.connect(self._settings_changed)
         self.open_window(w)
 
     def _settings_changed(self):
-        self.watcher.set_key(self.settings.get("trigger"))
-        self.watcher.excluded = self.settings.excluded_apps()
+        self._apply_keys()
         self.apply_look()
+        if not self.hotkey.set(self.settings.get("open_hotkey")) and self.settings.get("open_hotkey"):
+            self.toasts.error("Shortcut unavailable",
+                              f"{self.settings.get('open_hotkey')} is used by another app. Pick another in Settings → Keys.")
         self.tray.setToolTip(f"{APP_NAME} — press {self.trigger_label()} while dragging a file")
 
     def show_welcome(self):
@@ -734,8 +860,12 @@ def selftest() -> int:
             for t in convert.targets_for("image", ".png"):
                 convert.convert(src, "image", t)
             pdf = convert.convert(src, "image", "PDF")[0]
-            for t in convert.PDF_TARGETS:
-                convert.convert(pdf, "pdf", t)
+            textpdf = Path(d) / "text.pdf"
+            tdoc = convert.fitz.open()
+            tdoc.new_page().insert_text((72, 72), "Selftest heading", fontsize=20)
+            tdoc.save(textpdf)
+            for t in convert.PDF_TARGETS:          # needs real text: XLSX / EPUB / MD refuse picture-only PDFs
+                convert.convert(textpdf, "pdf", t)
             (Path(d) / "n.txt").write_text("hello")
             docx = convert.convert(Path(d) / "n.txt", "text", "DOCX")[0]
             convert.convert(docx, "docx", "TXT")
@@ -821,10 +951,34 @@ def selftest_extras(d: Path, png: Path, pdf: Path) -> None:
     archive.extract(z)
     print("office/archive OK")
 
+    # themes, wheel shapes, sounds (QtMultimedia packaged), new documents & tools
+    from . import docs, extras, sounds as snd, tools2, wheelshape
+    from .radial import Item, render_preview
+    for key in themes.THEMES:
+        for mode in ("light", "dark"):
+            render_preview(themes.resolve(key, {"mode": mode}), [Item(t) for t in ("PNG", "PDF", "JPG")], 1, size=80)
+    for outline in themes.OUTLINES:
+        assert len(wheelshape.slices(outline, 7, QPointF(200, 200), 64, 158, 5, 12)) == 7
+    player = snd.Player()
+    assert player.available, "QtMultimedia missing from the build"
+    player.configure(True, 0, "santra", {}, {}, {})
+    player.preload()
+    srt = d / "s.srt"
+    srt.write_text("1\n00:00:01,000 --> 00:00:02,000\nHi\n", encoding="utf-8")
+    docs.subtitles_to(srt, "VTT")
+    md = d / "b.md"
+    md.write_text("# Book\n\nText", encoding="utf-8")
+    docs.epub_to(docs.document_to(md, "EPUB")[0], "PDF")
+    docs.pdf_to_pptx(pdf)
+    extras.collage([Image.new("RGB", (40, 30), "red")] * 3, size=(200, 200))
+    print("themes/sounds/docs OK")
+
     for w in (printwin.IDCardWindow([str(cp)], n), printwin.PassportWindow([str(png)], n),
               printwin.ScanWindow([str(cp)], n), printwin.PrintWindow([str(pdf)], n),
               mediawin.TrimWindow(str(clip), n), mediawin.TrimWindow(str(mp3), n),
               mediawin.VideoCompressWindow([str(clip)], n), mediawin.SpeedWindow(str(clip), n),
-              ocrwin.ExtractTextWindow(str(png), n)):
+              ocrwin.ExtractTextWindow(str(png), n), tools2.ChannelsWindow(str(clip), n),
+              tools2.SplitWindow(str(clip), n), tools2.VideoCropWindow(str(clip), n),
+              tools2.MetadataEditWindow(str(png), n)):
         w.close()
     print("windows OK")

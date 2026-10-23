@@ -116,17 +116,23 @@ def test_shortcut_resolves_to_target(img, tmp_path):
     assert resolve_shortcuts([str(img)]) == [str(img)]
 
 
-def test_shift_tap_switches_ring_even_when_missed_or_early():
+def test_each_wheel_has_its_key_and_taps_are_never_missed():
+    from PySide6.QtCore import QPoint
     from PySide6.QtWidgets import QApplication
+    from shiftwheel.settings import KEY_VK
     from shiftwheel.trigger import TAP_GRACE, ShiftWheelWatcher
     QApplication.instance() or QApplication([])
-    state = {"visible": True, "got_drag": False}
+    state = {"visible": False, "got_drag": False}
     w = ShiftWheelWatcher(lambda: state["visible"], lambda: state["got_drag"])
-    flips = []
-    w.toggle_ring.connect(lambda: flips.append(1))
+    w.set_bindings({"Convert": "shift", "Tools": "ctrl", "Actions": "alt"}, KEY_VK)
+    shown, switched = [], []
+    w.show_menu.connect(lambda pos, ring: shown.append(ring))
+    w.switch_ring.connect(switched.append)
     feed = iter([])
     w._state = lambda: next(feed)
-    w._shift_was = True                                  # Shift still held from opening the menu
+
+    def keys(**on):            # ring=(down, tapped)
+        return {r: on.get(r, (False, False)) for r in ("Convert", "Tools", "Actions")}
 
     def run(*states):
         nonlocal feed
@@ -134,21 +140,34 @@ def test_shift_tap_switches_ring_even_when_missed_or_early():
         for _ in states:
             w._tick()
 
-    held, up = (True, True, False, False), (True, False, False, False)
-    run(held, held, up)                                  # releasing Shift is not a tap
-    assert flips == []
-    run(up, (True, False, False, True))                  # a whole tap between two polls
-    assert flips == []                                   # drag not on the menu yet: kept…
+    w._down_at = QPoint(-1000, -1000)                    # the mouse has moved: it's a drag
+    run((True, False, keys(Tools=(True, False))))        # Ctrl while dragging → Tools wheel
+    assert shown == ["Tools"]
+    state["visible"] = True
+    up = (True, False, keys())
+    run(up, (True, False, keys(Actions=(False, True))))  # Alt tapped between two polls
+    assert switched == []                                # drag not on the menu yet: kept…
     state["got_drag"] = True
     run(up)
-    assert flips == [1]                                  # …and applied once it arrives
-    run((True, True, False, True), held, held, up)       # an ordinary press; auto-repeat ignored
-    assert flips == [1, 1]
+    assert switched == ["Actions"]                       # …and applied once it arrives
+    run((True, False, keys(Tools=(True, True))), (True, False, keys(Tools=(True, True))), up)
+    assert switched == ["Actions", "Tools"]              # held key's auto-repeat isn't a new press
     state["got_drag"] = False
-    run((True, True, False, False), *[up] * (TAP_GRACE + 2))
+    run((True, False, keys(Convert=(True, False))), *[up] * (TAP_GRACE + 2))
     state["got_drag"] = True
     run(up)
-    assert flips == [1, 1]                               # a stale tap expires
+    assert switched == ["Actions", "Tools"]              # a stale press expires
+    state["visible"] = False
+    w._fired = False
+    w._down_at = QPoint(-1000, -1000)
+    w.excluded = {"pytest-host.exe"}
+    import shiftwheel.trigger as T
+    saved, T.foreground_exe = T.foreground_exe, lambda: "pytest-host.exe"
+    try:
+        run((True, False, keys(Convert=(True, False))))
+    finally:
+        T.foreground_exe = saved
+    assert shown == ["Tools"]                            # excluded app: no wheel
 
 
 @pytest.mark.skipif(__import__("sys").platform != "win32", reason="Windows registry")
@@ -180,8 +199,8 @@ def test_markdown_and_html_render_instead_of_printing_source(tmp_path):
     page.write_text("<html><head><title>T</title><style>p{color:red}</style></head>"
                     "<body><h1>Hello</h1><p>World <b>wide</b></p><script>x=1</script></body></html>",
                     encoding="utf-8")
-    assert convert.targets_for("text", ".md") == ["PDF", "DOCX", "HTML"]
-    assert convert.targets_for("text", ".html") == ["PDF", "DOCX", "TXT"]
+    assert convert.targets_for("text", ".md") == ["PDF", "DOCX", "HTML", "EPUB", "TXT"]
+    assert convert.targets_for("text", ".html") == ["PDF", "DOCX", "TXT", "MD", "EPUB"]
     with convert.fitz.open(convert.convert(md, "text", "PDF")[0]) as d:
         text = d[0].get_text()
     assert "Title" in text and "bold" in text and "#" not in text and "**" not in text
@@ -215,5 +234,9 @@ def test_file_ring_actions(tmp_path):
     assert p == f and digest == hashlib.sha256(b"%PDF-1.4 hello").hexdigest()
     for paths in ([str(f)], [str(folder)], [str(f), str(folder)]):
         rings = ShiftWheelApp.build_rings(None, paths)
-        assert list(rings)[-1] == "File"
-        assert [i.label for i in rings["File"]] == ["Copy path", "Show", "SHA-256", "Duplicate"]
+        assert list(rings)[-1] == "Actions"
+        assert [i.label for i in rings["Actions"]] == ["Share", "Float", "Copy", "Move", "Copy path", "Terminal",
+                                                       "Show", "SHA-256", "Duplicate"]
+        assert all(i.icon for i in rings["Actions"])            # line icons for every action
+    moved = fileops.move_to([f], tmp_path / "Project")
+    assert moved == [tmp_path / "Project" / "Report.pdf"] and moved[0].exists() and not f.exists()
