@@ -169,7 +169,7 @@ def uia():
     return Desktop(backend="uia")
 
 
-def find_window(title_re: str, timeout=15):
+def find_window(title_re: str, timeout=30):
     end = time.time() + timeout
     while time.time() < end:
         try:
@@ -313,6 +313,15 @@ def click_title(win, title: str, pause=0.4, dur=0.35):
             time.sleep(0.2)
     if b is None:
         raise RuntimeError(f"control not found: {title!r}")
+    # buttons stay disabled while the tool works (OCR, previews); a click then does nothing
+    end = time.time() + 60
+    while time.time() < end:
+        try:
+            if b.is_enabled():
+                break
+        except Exception:
+            break
+        time.sleep(0.25)
     r = b.rectangle()
     glide((r.left + r.right) // 2, (r.top + r.bottom) // 2, dur)
     pyautogui.click()

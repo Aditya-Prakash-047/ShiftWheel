@@ -288,7 +288,7 @@ class TrimWindow(ToolWindow):
             self.play_btn.setText("▶ Play selection")
 
     def closeEvent(self, e):
-        if self.player is not None:
+        if getattr(self, "player", None) is not None:      # unset if the window refused the file
             self.player.stop()
         super().closeEvent(e)
 
