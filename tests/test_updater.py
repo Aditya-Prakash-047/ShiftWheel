@@ -156,6 +156,8 @@ def test_installer_script(tmp_path):
     script, cmd = updater.install_script("installed", dl, 4242, Path(r"C:\Apps\ShiftWheel\ShiftWheel.exe"))
     text = script.read_text(encoding="utf-8")
     assert "/VERYSILENT" in text and "/SUPPRESSMSGBOXES" in text and 'PID eq 4242' in text
+    raw = script.read_bytes()
+    assert b"\r\r\n" not in raw and raw.count(b"\r\n") == raw.count(b"\n")      # clean CRLF
     assert 'start "" "C:\\Apps\\ShiftWheel\\ShiftWheel.exe"' in text and cmd[0] == "cmd.exe"
 
 
@@ -164,6 +166,7 @@ def test_mac_script_is_valid_bash(tmp_path):
     dl.write_bytes(b"")
     script, cmd = updater.install_script("mac-app", dl, 4242, PurePosixPath("/Applications/ShiftWheel.app"))
     text = script.read_text(encoding="utf-8")
+    assert b"\r" not in script.read_bytes()                                 # LF only, for bash
     assert "hdiutil attach" in text and 'ditto "$MNT/ShiftWheel.app" "/Applications/ShiftWheel.app"' in text
     bash = shutil.which("bash")
     if bash:
