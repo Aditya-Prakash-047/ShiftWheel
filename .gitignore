@@ -9,3 +9,4 @@ e2e_*_out/
 e2e_out/
 /*.exe
 /*.dmg
+/publishes/

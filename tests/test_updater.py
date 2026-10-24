@@ -103,7 +103,7 @@ def test_check_says_up_to_date(feed):
 
 def test_check_explains_failures(feed):
     feed.status = 404
-    with pytest.raises(UserError, match="private"):
+    with pytest.raises(UserError, match="No published release"):
         updater.check()
     feed.status = 403
     with pytest.raises(UserError, match="limiting"):

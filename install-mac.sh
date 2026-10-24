@@ -1,13 +1,13 @@
 #!/bin/bash
 # ShiftWheel installer for macOS.
-#   curl -fsSL https://raw.githubusercontent.com/Aditya-Prakash-047/ShiftWheel/main/install-mac.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/Aditya-Prakash-047/ShiftWheel-releases/main/install-mac.sh | bash
 # Downloads the right build for this Mac from the latest GitHub release, installs it to
 # /Applications and opens it. Files fetched by curl aren't marked "downloaded from the
 # internet", so macOS doesn't show the "could not verify" warning. Read it first if you like —
 # it's short.
 set -euo pipefail
 
-REPO="Aditya-Prakash-047/ShiftWheel"
+REPO="Aditya-Prakash-047/ShiftWheel-releases"
 case "$(uname -m)" in
   arm64) ASSET="ShiftWheel-mac-apple-silicon.dmg" ;;
   *)     ASSET="ShiftWheel-mac-intel.dmg" ;;

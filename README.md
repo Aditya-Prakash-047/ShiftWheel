@@ -123,7 +123,7 @@ Drag the two handles over the filmstrip (or the waveform, for audio); the previe
 
 ### Windows 10/11
 
-From the [latest release](https://github.com/Aditya-Prakash-047/ShiftWheel/releases/latest) (or **Actions → Build Windows app → ShiftWheel-windows**):
+From the [latest release](https://github.com/Aditya-Prakash-047/ShiftWheel-releases/releases/latest) (or **Actions → Build Windows app → ShiftWheel-windows**):
 
 - **ShiftWheel-Setup.exe** (recommended) — installs for your user only (no admin), adds the Start menu entry, start-with-Windows, the right-click **ShiftWheel…** entry for files and folders, and **Send to**.
 - **ShiftWheel.exe** — portable. Turn on **Settings → Show “ShiftWheel…” when you right-click a file** to get the right-click entry without installing (per-user, no admin).

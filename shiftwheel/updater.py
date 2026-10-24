@@ -31,7 +31,8 @@ from typing import Callable
 from . import __version__
 from .util import UserError
 
-REPO = "Aditya-Prakash-047/ShiftWheel"
+# the source repository is private; builds and release notes are published to a public one
+REPO = "Aditya-Prakash-047/ShiftWheel-releases"
 FEED = f"https://api.github.com/repos/{REPO}/releases/latest"
 RELEASES_PAGE = f"https://github.com/{REPO}/releases/latest"
 CHECK_EVERY = 24 * 3600          # automatic checks: at most once a day
@@ -114,7 +115,7 @@ def fetch_latest(feed: str | None = None) -> Release:
             data = json.loads(r.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         if e.code == 404:
-            raise UserError("No published release found (the release page may be private).") from e
+            raise UserError("No published release found yet.") from e
         if e.code in (403, 429):
             raise UserError("GitHub is limiting requests right now. Try again in an hour.") from e
         raise UserError(f"The update server answered {e.code}.") from e
