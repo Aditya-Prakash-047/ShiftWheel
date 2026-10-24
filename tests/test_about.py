@@ -1,6 +1,8 @@
 """About window: creator, links, what's new and credits."""
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from PySide6.QtWidgets import QApplication
 
@@ -24,7 +26,9 @@ def test_about_window_has_every_page():
 
 def test_release_notes_are_bundled_and_read():
     notes = aboutwin.release_notes()
-    assert notes.lstrip().startswith("-") and "Share" in notes
+    root = Path(aboutwin.__file__).resolve().parents[1]
+    assert notes == (root / "RELEASE_NOTES.md").read_text(encoding="utf-8")
+    assert notes.lstrip().startswith("-")          # the first bullet is what the update card shows
 
 
 def test_links_are_https():
