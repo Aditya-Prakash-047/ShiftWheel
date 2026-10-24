@@ -204,7 +204,7 @@ def install_script(kind: str, downloaded: Path, pid: int, target: Path) -> tuple
                       f'move /y "{downloaded}" "{target}" >nul || move /y "{target}.old" "{target}" >nul']
         lines += [f'start "" "{target}"', f'del "{target}.old" 2>nul', "endlocal"]
         script = folder / "finish-update.cmd"
-        script.write_text("\r\n".join(lines) + "\r\n", encoding="utf-8")
+        script.write_text("\r\n".join(lines) + "\r\n", encoding="utf-8", newline="")   # exactly CRLF
         return script, ["cmd.exe", "/c", str(script)]
     if kind == "mac-app":
         lines = ["#!/bin/bash", "set -u",
@@ -217,7 +217,7 @@ def install_script(kind: str, downloaded: Path, pid: int, target: Path) -> tuple
                  f'xattr -dr com.apple.quarantine "{target}" 2>/dev/null',
                  f'rm -rf "{target}.old"', f'open "{target}"']
         script = folder / "finish-update.sh"
-        script.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        script.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="")     # LF only, for bash
         script.chmod(0o755)
         return script, ["/bin/bash", str(script)]
     raise UserError("This copy runs from source: update it with git pull.")
