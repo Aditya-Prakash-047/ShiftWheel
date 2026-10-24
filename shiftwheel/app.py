@@ -228,7 +228,8 @@ class ShiftWheelApp(QObject):
         m.addAction("Settings…", self.open_settings)
         m.addAction("Check for updates…", lambda: self.updates.check(quiet=False))
         m.addAction("How to use", self.show_welcome)
-        m.addAction("About / credits", lambda: QDesktopServices.openUrl(QUrl(REPO_URL)))
+        m.addAction("What's new", lambda: self.open_about(1))
+        m.addAction("About / credits", lambda: self.open_about(0))
         m.addSeparator()
         m.addAction(f"Quit {APP_NAME}", self.qapp.quit)
         self.tray_menu = m
@@ -753,6 +754,10 @@ class ShiftWheelApp(QObject):
         pos = QCursor.pos() if g.contains(QCursor.pos()) else g.center()
         self.menu.popup(pos, files)
         self.menu.activateWindow()
+
+    def open_about(self, page: int = 0):
+        from .aboutwin import AboutWindow
+        self.open_window(AboutWindow(self.updates, page))
 
     def open_settings(self):
         w = SettingsWindow(self.settings, self.sounds, self.updates)
