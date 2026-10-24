@@ -1,9 +1,10 @@
 name: End-to-end test (real Windows desktop)
 
 on:
+  # Actions minutes are limited: run for release tags, or by hand (Actions tab -> Run workflow).
+  # Everyday changes are tested locally (pytest, a PyInstaller build and --selftest).
   push:
-    branches: [main, e2e]
-    paths-ignore: ["**.md", "docs/**"]
+    tags: ["v*"]
   workflow_dispatch:
 
 permissions:

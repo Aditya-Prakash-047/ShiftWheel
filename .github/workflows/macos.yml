@@ -1,11 +1,10 @@
 name: Build macOS app
 
 on:
+  # Actions minutes are limited: run for release tags, or by hand (Actions tab -> Run workflow).
+  # Everyday changes are tested locally (pytest, a PyInstaller build and --selftest).
   push:
-    branches: [main]
     tags: ["v*"]
-    paths-ignore: ["**.md", "docs/**"]
-  pull_request:
   workflow_dispatch:
 
 permissions:
