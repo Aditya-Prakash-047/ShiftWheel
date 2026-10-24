@@ -23,7 +23,7 @@ from .trigger import ShiftWheelWatcher
 from .util import UserError, call_with_progress, category, file_size, human_size, keep, release
 
 APP_NAME = "ShiftWheel"
-REPO_URL = "https://github.com/Aditya-prakash-047/ShiftWheel"
+REPO_URL = "https://github.com/Aditya-Prakash-047/ShiftWheel-releases"
 CREDITS_URL = "https://github.com/llamaboi55/DragShift"
 VERSION = __version__
 IS_WIN = sys.platform == "win32"
