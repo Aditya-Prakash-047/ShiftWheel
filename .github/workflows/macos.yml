@@ -83,4 +83,4 @@ jobs:
             exit 0
           fi
           gh release view "$GITHUB_REF_NAME" -R "$PUBLIC" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" -R "$PUBLIC" --title "ShiftWheel ${GITHUB_REF_NAME#v}" --notes-file RELEASE_NOTES.md || true
-          gh release upload "$GITHUB_REF_NAME" -R "$PUBLIC" "dist/${{ matrix.asset }}" --clobber
+          gh release upload "$GITHUB_REF_NAME" -R "$PUBLIC" "dist/${{ matrix.asset }}" install-mac.sh --clobber
