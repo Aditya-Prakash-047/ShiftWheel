@@ -50,7 +50,7 @@ class UpdateController(QObject):
         if last and updater.is_newer(__version__, last):
             QTimer.singleShot(1500, lambda: self.app.toasts.prompt(
                 f"Updated to ShiftWheel {__version__}", f"You had {last}.",
-                [("What's new", self.open_page)], ms=12000))
+                [("What's new", lambda: self.app.open_about(1))], ms=12000))
         if last != __version__:
             self.s.set("last_version", __version__)
         QTimer.singleShot(25_000, self.auto_check)          # well after start-up
@@ -104,7 +104,7 @@ class UpdateController(QObject):
     def offer(self, rel: updater.Release):
         first = next((ln.strip("-*# ").strip() for ln in rel.notes.splitlines() if ln.strip("-*# ").strip()), "")
         detail = (first[:90] + "…") if len(first) > 90 else (first or f"You have {__version__}.")
-        actions = [("Update now", lambda: self.install(rel)), ("What's new", lambda: self.open_page(rel))]
+        actions = [("Update now", lambda: self.install(rel)), ("What's new", lambda: self.app.open_about(1))]
         if updater.install_kind() != "source":
             actions.append(("Skip", lambda: self.skip(rel)))
         self.app.toasts.prompt(f"ShiftWheel {rel.version} is available", detail, actions, ms=60000)

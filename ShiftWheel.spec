@@ -18,7 +18,7 @@ for pkg in ("pillow_heif", "imageio_ffmpeg", "rapidocr", "onnxruntime", "omegaco
 
 a = Analysis(
     ["run.py"],
-    datas=[("shiftwheel/assets", "shiftwheel/assets")] + datas,
+    datas=[("shiftwheel/assets", "shiftwheel/assets"), ("RELEASE_NOTES.md", ".")] + datas,
     binaries=bins,
     hiddenimports=["win32com.client", "pythoncom", "PySide6.QtNetwork", "PySide6.QtPrintSupport",
                    "PySide6.QtMultimedia", "cv2", "pymupdf", "AppKit",
