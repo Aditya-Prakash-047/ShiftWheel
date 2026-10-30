@@ -42,7 +42,7 @@ class UpdateController(QObject):
         self.available: updater.Release | None = None
         self.busy = False
         self.status = self._idle_status()
-        self.timer = QTimer(self, interval=6 * 3600 * 1000, timeout=self.auto_check)
+        self.timer = QTimer(self, interval=30 * 60 * 1000, timeout=self.auto_check)
 
     # ------------------------------------------------------------ start-up
     def start(self):
@@ -53,12 +53,39 @@ class UpdateController(QObject):
                 [("What's new", lambda: self.app.open_about(1))], ms=12000))
         if last != __version__:
             self.s.set("last_version", __version__)
+        self._after_update()
         QTimer.singleShot(25_000, self.auto_check)          # well after start-up
         self.timer.start()
 
+    def _after_update(self):
+        """Did the update asked for last time really install? Say so if it didn't."""
+        attempt = self.s.get("update_attempt")
+        if attempt:
+            self.s.set("update_attempt", "")
+            if updater.is_newer(attempt, __version__):
+                QTimer.singleShot(2000, lambda: self.app.toasts.prompt(
+                    f"The update to {attempt} didn't install", f"You're still on {__version__}.",
+                    [("Try again", lambda: self.check(quiet=False)), ("Download page", self.open_page)], ms=60000))
+                return
+        if not attempt or not updater.is_newer(attempt, __version__):
+            updater.cleanup_downloads()
+
     def auto_check(self):
-        if self.s.get("update_auto") and updater.due(self.s.get("update_last")):
+        if self.available is not None:
+            self._maybe_offer(self.available)       # it was held back by a game or a fullscreen app
+        elif self.s.get("update_auto") and updater.due(self.s.get("update_last")):
             self.check(quiet=True)
+
+    def _maybe_offer(self, rel: updater.Release):
+        """Automatic checks ask once per version; afterwards it waits quietly in the tray menu,
+        Settings and About. Never over a game or a fullscreen app."""
+        if self.s.get("update_offered") == rel.version:
+            return
+        watcher = getattr(self.app, "watcher", None)
+        if watcher is not None and watcher.is_busy():
+            return
+        self.s.set("update_offered", rel.version)
+        self.offer(rel)
 
     # ------------------------------------------------------------ check
     def _idle_status(self) -> str:
@@ -99,7 +126,11 @@ class UpdateController(QObject):
                 self.app.toasts.info("You're up to date", f"ShiftWheel {__version__} is the latest version.")
             return
         self._set_status(f"ShiftWheel {result.version} is available (you have {__version__})")
-        self.offer(result)
+        if quiet:
+            self._maybe_offer(result)
+        else:
+            self.s.set("update_offered", result.version)
+            self.offer(result)
 
     def offer(self, rel: updater.Release):
         first = next((ln.strip("-*# ").strip() for ln in rel.notes.splitlines() if ln.strip("-*# ").strip()), "")
@@ -131,7 +162,8 @@ class UpdateController(QObject):
         card = self.app.toasts.new()
         card.working(f"Downloading ShiftWheel {rel.version}", "0%")
         self._set_status(f"Downloading {rel.version}…")
-        job = keep(_Job(lambda p: updater.download(asset, progress=p)))
+        folder = updater.update_folder(rel.version)
+        job = keep(_Job(lambda p: updater.download(asset, folder, p)))
         job.sig.progress.connect(lambda f: card.working(f"Downloading ShiftWheel {rel.version}",
                                                         f"{int(f * 100)}%  ·  {asset.size / 1048576:.0f} MB"))
         job.sig.done.connect(lambda r: self._downloaded(job, r, card, rel, kind))
@@ -155,6 +187,8 @@ class UpdateController(QObject):
             QTimer.singleShot(1000, lambda: self._install_when_idle(path, kind, waited + 1))
             return
         try:
+            self.s.set("update_attempt", self.available.version if self.available else "")
+            self.s.q.sync()
             updater.launch_install(path, kind)
         except Exception as e:  # noqa: BLE001
             self.busy = False

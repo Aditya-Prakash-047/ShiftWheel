@@ -18,10 +18,16 @@ for pkg in ("pillow_heif", "imageio_ffmpeg", "rapidocr", "onnxruntime", "omegaco
 
 a = Analysis(
     ["run.py"],
-    datas=[("shiftwheel/assets", "shiftwheel/assets"), ("RELEASE_NOTES.md", ".")] + datas,
+    datas=[("shiftwheel/assets", "shiftwheel/assets"), ("RELEASE_NOTES.md", "."), ("LICENSE", ".")] + datas,
     binaries=bins,
     hiddenimports=["win32com.client", "pythoncom", "PySide6.QtNetwork", "PySide6.QtPrintSupport",
                    "PySide6.QtMultimedia", "cv2", "pymupdf", "AppKit",
+                   # imported by name on first use (see LazyModule)
+                   "shiftwheel.archive", "shiftwheel.compresswin", "shiftwheel.convert", "shiftwheel.extras",
+                   "shiftwheel.imaging", "shiftwheel.media", "shiftwheel.mediawin", "shiftwheel.ocr",
+                   "shiftwheel.ocrwin", "shiftwheel.office", "shiftwheel.printwin", "shiftwheel.report",
+                   "shiftwheel.saveas", "shiftwheel.tools", "shiftwheel.tools2", "shiftwheel.aboutwin",
+                   "shiftwheel.confirmwin", "shiftwheel.updatectl", "shiftwheel.updater", "shiftwheel.winshare",
                    "Quartz", "objc"] + hidden,
     excludes=["tkinter", "PySide6.QtWebEngineCore", "PySide6.QtWebEngineWidgets", "PySide6.QtQml",
               "PySide6.QtQuick", "PySide6.Qt3DCore", "PySide6.QtCharts",
@@ -70,8 +76,8 @@ if IS_MAC:
         info_plist={
             "CFBundleName": "ShiftWheel",
             "CFBundleDisplayName": "ShiftWheel",
-            "CFBundleShortVersionString": "1.2.0",
-            "CFBundleVersion": "1.2.0",
+            "CFBundleShortVersionString": "1.3.0",
+            "CFBundleVersion": "1.3.0",
             "LSUIElement": True,                 # menu-bar app, no Dock icon
             "LSMinimumSystemVersion": "11.0",
             "NSHighResolutionCapable": True,

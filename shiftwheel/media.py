@@ -16,7 +16,8 @@ from typing import Callable
 from .util import UserError, sibling
 
 Progress = Callable[[float], None] | None
-CREATE_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
+# no console window, below-normal priority: encoding never takes the machine from what you're doing
+CREATE_NO_WINDOW = 0x08000000 | 0x00004000 if sys.platform == "win32" else 0
 
 VIDEO_TARGETS = ["MP4", "MOV", "MKV", "WEBM", "AVI", "GIF", "MP3", "WAV"]
 AUDIO_TARGETS = ["MP3", "M4A", "WAV", "OGG", "FLAC", "OPUS"]

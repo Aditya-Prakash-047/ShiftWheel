@@ -15,6 +15,13 @@ from PIL import Image
 from .util import UserError, sibling
 
 _ENGINE = None
+
+
+def release_engine() -> None:
+    """Free the text-recognition models (hundreds of MB); reloaded at the next OCR."""
+    global _ENGINE
+    with _LOCK:
+        _ENGINE = None
 _LOCK = threading.RLock()   # re-entrant: recognize() holds it while engine() loads
 
 

@@ -141,6 +141,22 @@ def zip_paths(paths: list, fmt: str = "ZIP", level: str = "normal") -> Path:
     return out
 
 
+def member_count(path) -> int:
+    """Files inside an archive (0 if that can't be told cheaply)."""
+    p = str(path).lower()
+    if p.endswith(".zip"):
+        with zipfile.ZipFile(path) as z:
+            return sum(not n.endswith("/") for n in z.namelist())
+    if p.endswith(".7z"):
+        import py7zr
+        with py7zr.SevenZipFile(path) as z:
+            return len(z.getnames())
+    if p.endswith((".tar", ".tgz", ".tar.gz", ".tar.bz2", ".tar.xz")):
+        with tarfile.open(path) as t:
+            return sum(m.isfile() for m in t.getmembers())
+    return 0
+
+
 def _safe(dest: Path, member: str) -> Path:
     target = (dest / member).resolve()
     if dest.resolve() not in target.parents and target != dest.resolve():

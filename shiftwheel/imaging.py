@@ -9,7 +9,7 @@ from PIL import Image, ImageChops, ImageDraw, ImageEnhance, ImageFilter, ImageOp
 from PIL.ExifTags import GPSTAGS, TAGS
 
 from .convert import atomic_save, fitz, open_image, open_pdf, save_image
-from .util import file_size, sibling
+from .util import file_size, output_dir, sibling, unique_path
 
 EXT_TARGET = {".jpg": "JPG", ".jpeg": "JPG", ".png": "PNG", ".webp": "WEBP", ".tif": "TIFF",
               ".tiff": "TIFF", ".bmp": "BMP", ".heic": "HEIC", ".heif": "HEIC",
@@ -358,16 +358,26 @@ def strip_pdf_metadata(src: str | Path) -> Path:
 
 
 # ---------------------------------------------------------------- pdf extras
-def split_pdf(src: str | Path) -> list[Path]:
+def split_pdf(src: str | Path, every: int = 1, progress=None) -> list[Path]:
+    """One PDF per `every` pages. Lots of pieces go in a folder of their own."""
     outs = []
     with open_pdf(src) as doc:
-        for i in range(doc.page_count):
+        starts = list(range(0, doc.page_count, max(1, every)))
+        folder = None
+        if len(starts) >= 10:
+            folder = unique_path(output_dir(src) / f"{Path(src).stem} pages")
+            folder.mkdir(parents=True)
+        for k, i in enumerate(starts):
+            last = min(i + max(1, every), doc.page_count) - 1
+            label = f"page {i + 1}" if last == i else f"pages {i + 1}-{last + 1}"
             nd = fitz.open()
-            nd.insert_pdf(doc, from_page=i, to_page=i)
-            out = sibling(src, f"page {i + 1}", ".pdf")
+            nd.insert_pdf(doc, from_page=i, to_page=last)
+            out = folder / f"{Path(src).stem} {label}.pdf" if folder else sibling(src, label, ".pdf")
             nd.save(out)
             nd.close()
             outs.append(out)
+            if progress:
+                progress((k + 1) / len(starts))
     return outs
 
 

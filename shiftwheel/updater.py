@@ -37,6 +37,9 @@ FEED = f"https://api.github.com/repos/{REPO}/releases/latest"
 RELEASES_PAGE = f"https://github.com/{REPO}/releases/latest"
 CHECK_EVERY = 24 * 3600          # automatic checks: at most once a day
 CREATE_NO_WINDOW = 0x08000000
+# How the finishing script is started. Not DETACHED_PROCESS: cmd.exe exits at once under it
+# (no console for its pipes), which silently made every update do nothing.
+LAUNCH_FLAGS = CREATE_NO_WINDOW | 0x00000200      # no window, own process group
 
 
 @dataclass
@@ -148,12 +151,39 @@ def due(last_check: float, now: float | None = None) -> bool:
 
 
 # ---------------------------------------------------------------- download + verify
+def update_folder(version: str) -> Path:
+    return Path(tempfile.gettempdir()) / f"ShiftWheel-update-{version}"
+
+
+def cleanup_downloads() -> None:
+    """Installers from earlier updates are ~150 MB each: remove them once they're not needed."""
+    import shutil
+    for d in Path(tempfile.gettempdir()).glob("ShiftWheel-update-*"):
+        shutil.rmtree(d, ignore_errors=True)
+
+
+def _matches(path: Path, asset: Asset) -> bool:
+    """Already downloaded and intact? (Never trusted without a published checksum.)"""
+    if not asset.sha256 or not path.is_file() or (asset.size and path.stat().st_size != asset.size):
+        return False
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest() == asset.sha256
+
+
 def download(asset: Asset, folder: Path | None = None,
              progress: Callable[[float], None] | None = None) -> Path:
-    """Download to a temp folder and check size and SHA-256. Returns the verified file."""
+    """Download to a temp folder and check size and SHA-256. Returns the verified file;
+    a verified copy from an earlier try is reused instead of downloading it again."""
     folder = Path(folder or tempfile.mkdtemp(prefix="ShiftWheel-update-"))
     folder.mkdir(parents=True, exist_ok=True)
     out = folder / asset.name
+    if _matches(out, asset):
+        if progress:
+            progress(1.0)
+        return out
     part = out.with_name(out.name + ".part")
     h = hashlib.sha256()
     got = 0
@@ -237,7 +267,6 @@ def launch_install(downloaded: Path, kind: str | None = None) -> None:
     kind = kind or install_kind()
     script, cmd = install_script(kind, downloaded, os.getpid(), current_target(kind))
     if sys.platform == "win32":
-        flags = CREATE_NO_WINDOW | 0x00000008 | 0x00000200      # no window, detached, new group
-        subprocess.Popen(cmd, creationflags=flags, close_fds=True, cwd=str(script.parent))
+        subprocess.Popen(cmd, creationflags=LAUNCH_FLAGS, close_fds=True, cwd=str(script.parent))
     else:
         subprocess.Popen(cmd, start_new_session=True, close_fds=True, cwd=str(script.parent))

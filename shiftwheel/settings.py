@@ -49,13 +49,18 @@ DEFAULTS = {
     "jpg_quality": 90,
     "pdf_dpi": 200,
     # behaviour
+    "wheel_where": "files",      # "files": only in file managers; "all": everywhere except excluded_apps
+    "allowed_apps": "",          # extra apps for "files"
     "excluded_apps": DEFAULT_EXCLUDED,
+    "confirm_files": 10,         # ask before a job creates this many files
     "notifications": "all",
     "welcomed": False,
     # updates
     "update_auto": True,
     "update_last": 0,            # when the last check ran (Unix time)
     "update_skip": "",           # "Skip this version"
+    "update_offered": "",        # automatic checks ask once per version
+    "update_attempt": "",        # the version being installed: checked after the restart
     "last_version": "",          # the version that ran last: shows "Updated to …" once
 }
 
@@ -71,10 +76,12 @@ CHOICES = {
     "jpg_quality": set(range(60, 101)),
     "pdf_dpi": {150, 200, 300},
     "notifications": {"all", "errors"},
+    "wheel_where": {"files", "all"},
+    "confirm_files": {1, 5, 10, 25, 50, 100, 1000},
 }
 RENAMED = {"theme": "wheel_style", "key_convert": "trigger"}
 # written by the app itself, not by the user: Cancel in Settings leaves these alone
-VOLATILE = {"update_last", "update_skip", "last_version", "welcomed"}     # older keys they're migrated from
+VOLATILE = {"update_last", "update_skip", "update_offered", "update_attempt", "last_version", "welcomed"}     # older keys they're migrated from
 
 
 class Settings:
@@ -164,8 +171,11 @@ class Settings:
 
     def apply(self):
         """Copy what worker threads need into plain values (see util.CONFIG)."""
-        for k in ("output", "output_folder", "on_conflict", "jpg_quality", "pdf_dpi"):
+        for k in ("output", "output_folder", "on_conflict", "jpg_quality", "pdf_dpi", "confirm_files"):
             CONFIG[k] = self.get(k)
+
+    def allowed_apps(self) -> set[str]:
+        return {a.strip().lower() for a in self.get("allowed_apps").replace(";", ",").split(",") if a.strip()}
 
     def excluded_apps(self) -> set[str]:
         return {a.strip().lower() for a in self.get("excluded_apps").replace(";", ",").split(",") if a.strip()}
@@ -1175,6 +1185,12 @@ class SettingsWindow(GlassWindow):
         self.after = combo(AFTER_SAVE, self.s.get("after_save"))
         self.after.currentIndexChanged.connect(lambda _: self._save("after_save", self.after.currentData()))
         g.addWidget(self.after, 5, 1)
+        g.addWidget(QLabel("Ask before creating"), 6, 0)
+        self.confirm = combo([(1, "Any number of files: always ask"), (5, "5 or more files"), (10, "10 or more files"),
+                              (25, "25 or more files"), (50, "50 or more files"), (100, "100 or more files"),
+                              (1000, "1,000 or more files")], self.s.get("confirm_files"))
+        self.confirm.currentIndexChanged.connect(lambda _: self._save("confirm_files", self.confirm.currentData()))
+        g.addWidget(self.confirm, 6, 1)
         lay.addLayout(g)
 
         self._section(lay, "Quality")
@@ -1218,13 +1234,32 @@ class SettingsWindow(GlassWindow):
     def _behaviour(self, lay):
         self._section(lay, "Where the wheel opens")
         g = self._grid()
-        g.addWidget(QLabel("Never open it in"), 0, 0)
+        g.addWidget(QLabel("Open the wheel"), 0, 0)
+        self.where = combo([("files", "Only in file managers (recommended)"),
+                            ("all", "In every app, except the ones below")], self.s.get("wheel_where"))
+        g.addWidget(self.where, 0, 1)
+        g.addWidget(QLabel("Also allow in"), 1, 0)
+        self.allow = QLineEdit(self.s.get("allowed_apps"))
+        self.allow.setPlaceholderText("outlook.exe, code.exe")
+        self.allow.editingFinished.connect(lambda: self._save("allowed_apps", self.allow.text().strip()))
+        g.addWidget(self.allow, 1, 1)
+        g.addWidget(QLabel("Never open it in"), 2, 0)
         self.excl = QLineEdit(self.s.get("excluded_apps"))
         self.excl.setPlaceholderText("Photoshop.exe, Figma.exe")
         self.excl.editingFinished.connect(lambda: self._save("excluded_apps", self.excl.text().strip()))
-        g.addWidget(self.excl, 0, 1)
-        g.addWidget(hint("Program names, separated by commas. Use it for apps where Shift-dragging already "
-                         "means something (constrain, duplicate, select)."), 1, 1)
+        g.addWidget(self.excl, 2, 1)
+        g.addWidget(hint("The wheel opens when you drag a file first, then tap the key. Shift then drag stays "
+                         "what it always was (selecting files), and Chrome, games and other apps are left "
+                         "alone. Program names are separated by commas."), 3, 1)
+
+        def where_changed(_=0):
+            value = self.where.currentData()
+            self.allow.setEnabled(value == "files")
+            self.excl.setEnabled(value == "all")
+            self._save("wheel_where", value)
+        self.where.currentIndexChanged.connect(where_changed)
+        self.allow.setEnabled(self.where.currentData() == "files")
+        self.excl.setEnabled(self.where.currentData() == "all")
         lay.addLayout(g)
 
         self._section(lay, "Notifications and system")

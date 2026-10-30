@@ -1,6 +1,13 @@
-"""Watches for "left button held + mouse moved + Shift pressed" anywhere on screen, which
-is what a Shift+drag of a file looks like. Polling global input state is simple, needs no
-admin rights and can't stall the system the way a broken hook can.
+"""Opens the wheel for "a file is being dragged, then a key is pressed". All of these must hold:
+
+* the key goes down *after* the mouse button (Shift then drag is range-select, not ShiftWheel);
+* the app in front is a file manager (Settings → Behaviour), so Chrome, games, editors never see it;
+* a real file drag is under way: Explorer's drag image exists (not a rubber-band selection
+  or a window being moved).
+
+Polling global input state is simple, needs no admin rights and can't stall the system the way
+a broken hook can. It is also cheap: with the button up it reads one key state 25 times a
+second, and with a game or fullscreen app in front only twice a second.
 Windows: GetAsyncKeyState. macOS: NSEvent.pressedMouseButtons / modifierFlags (no
 Accessibility or Input Monitoring permission required)."""
 from __future__ import annotations
@@ -15,12 +22,40 @@ VK_LBUTTON, VK_SHIFT, VK_ESCAPE = 0x01, 0x10, 0x1B
 DRAG_THRESHOLD = 10   # px the mouse must travel with the button held
 NO_DRAG_TIMEOUT = 50  # ticks (≈ 0.75 s) to wait for a file drag to enter before hiding
 TAP_GRACE = 30        # ticks (≈ 0.45 s) a ring-switch tap waits for the drag to reach the menu
+ACTIVE_MS, IDLE_MS, BUSY_MS = 15, 40, 500     # poll: during a drag, button up, game in front
+BUSY_EVERY = 50       # idle ticks (≈ 2 s) between checks for a game or fullscreen app
+
+# Where files are dragged from. Everything else needs Settings → Behaviour.
+FILE_MANAGERS = {"explorer.exe", "totalcmd.exe", "totalcmd64.exe", "dopus.exe", "dopusrt.exe", "files.exe",
+                 "onecommander.exe", "xyplorer.exe", "freecommander.exe", "q-dir.exe", "q-dir_x64.exe",
+                 "everything.exe", "everything64.exe", "doublecmd.exe", "fman.exe", "tablacus.exe", "te64.exe",
+                 "finder", "path finder", "forklift", "commander one"}
+
+
+_FG_CACHE: tuple[int, str] = (0, "")
 
 
 def foreground_exe() -> str:
-    """Program name of the active window ('photoshop.exe'), lower-case; '' if unknown."""
+    """Program name of the active window ('photoshop.exe', 'finder'), lower-case; '' if unknown.
+    Asks the system only when the active window changes."""
+    global _FG_CACHE
+    if sys.platform == "darwin":
+        try:
+            import AppKit
+            return str(AppKit.NSWorkspace.sharedWorkspace().frontmostApplication().localizedName()).lower()
+        except Exception:
+            return ""
     if sys.platform != "win32":
         return ""
+    hwnd = ctypes.windll.user32.GetForegroundWindow()
+    if hwnd and hwnd == _FG_CACHE[0]:
+        return _FG_CACHE[1]
+    name = _exe_of_foreground()
+    _FG_CACHE = (hwnd, name)
+    return name
+
+
+def _exe_of_foreground() -> str:
     try:
         from ctypes import wintypes
         user32, kernel32 = ctypes.windll.user32, ctypes.windll.kernel32
@@ -41,9 +76,36 @@ def foreground_exe() -> str:
         return ""
 
 
+def game_or_fullscreen() -> bool:
+    """A fullscreen app, game (Direct3D) or presentation has the screen (Windows' own answer,
+    the one it uses to hold back notifications)."""
+    if sys.platform != "win32":
+        return False
+    try:
+        state = ctypes.c_int(0)
+        if ctypes.windll.shell32.SHQueryUserNotificationState(ctypes.byref(state)) != 0:
+            return False
+        return state.value in (2, 3, 4)     # BUSY, RUNNING_D3D_FULL_SCREEN, PRESENTATION_MODE
+    except Exception:
+        return False
+
+
+def drag_image_visible() -> bool:
+    """Explorer shows this window for the whole of a file drag, and only then."""
+    if sys.platform != "win32":
+        return True
+    try:
+        user32 = ctypes.windll.user32
+        h = user32.FindWindowW("SysDragImage", None)
+        return bool(h and user32.IsWindowVisible(h))
+    except Exception:
+        return True
+
+
 class ShiftWheelWatcher(QObject):
     """Each wheel can have its own key (Settings → Keys): pressing it while dragging opens the
-    wheel on that ring; pressing another bound key switches ring; the same key again cycles."""
+    wheel on that ring; pressing another bound key switches ring; the same key again cycles.
+    See the module docstring for when it opens."""
     show_menu = Signal(QPoint, str)     # where, which ring
     switch_ring = Signal(str)           # a bound key was pressed while the menu is open
     hide_menu = Signal()
@@ -53,7 +115,11 @@ class ShiftWheelWatcher(QObject):
         self.menu_visible = menu_visible
         self.menu_got_drag = menu_got_drag
         self.enabled = True
-        self.excluded: set[str] = set()     # program names where the wheel never opens
+        self.excluded: set[str] = set()     # "everywhere" mode: program names where it never opens
+        self.only_in: set[str] | None = set(FILE_MANAGERS)    # file-managers mode; None = every app
+        self._armed = ""                    # ring whose key went down during this drag
+        self._busy = False                  # a game or fullscreen app has the screen
+        self._idle_count = 0
         self.bindings: dict[str, tuple[str, int]] = {"Convert": ("shift", VK_SHIFT)}
         self._down_at: QPoint | None = None
         self._was: dict[str, bool] = {}
@@ -71,7 +137,7 @@ class ShiftWheelWatcher(QObject):
             from . import platform_linux
             # same interface as platform_mac: left_button_down / key_down / escape_down
             self._mac = platform_linux if platform_linux.available() else None
-        self.timer = QTimer(self, interval=15, timeout=self._tick)
+        self.timer = QTimer(self, interval=IDLE_MS, timeout=self._poll)
 
     def set_bindings(self, ring_keys: dict[str, str], vks: dict[str, int] | None = None):
         """{ring: key id} (see keys.py); Windows codes come from keys.vk unless `vks` is given."""
@@ -106,13 +172,64 @@ class ShiftWheelWatcher(QObject):
             keys[ring] = (bool(k & 0x8000), bool(k & 0x0001))
         return self._down(VK_LBUTTON), self._down(VK_ESCAPE), keys
 
+    def app_allowed(self) -> bool:
+        if self._mac is not None and sys.platform != "darwin":
+            return True                     # Linux: no active-app query on X11 here
+        exe = foreground_exe()
+        if self.only_in is not None:
+            return exe in self.only_in
+        return exe not in self.excluded
+
+    def can_open(self) -> bool:
+        """Checked at the moment the wheel would open."""
+        if not self.enabled or not self.app_allowed():
+            return False
+        return drag_image_visible() if foreground_exe() == "explorer.exe" else True
+
+    def is_busy(self) -> bool:
+        return game_or_fullscreen() and foreground_exe() not in FILE_MANAGERS
+
+    def _left_down(self) -> bool:
+        if self._mac is not None:
+            return bool(self._mac.left_button_down())
+        return self._down(VK_LBUTTON)
+
+    def _reset(self):
+        self._down_at = None
+        self._fired = False
+        self._armed = ""
+        self._was = {}
+
+    def _poll(self):
+        """Almost all the time the button is up: read that one state and do nothing else."""
+        visible = self.menu_visible()
+        if not visible and not self._left_down():
+            if self._down_at is not None:
+                self._reset()
+            self._idle_count += 1
+            if self._idle_count >= (4 if self._busy else BUSY_EVERY):      # both ≈ every 2 s
+                self._idle_count = 0
+                self._busy = self.is_busy()
+            want = BUSY_MS if self._busy else IDLE_MS
+            if self.timer.interval() != want:
+                self.timer.setInterval(want)
+            return
+        if not visible and (self._busy or not self.enabled or not self.app_allowed()):
+            # someone else's drag (a game firing, text in Chrome): stay slow and don't read keys.
+            # The file manager may only just be getting focus from this click, so a press
+            # counts from the moment it does.
+            self._reset()
+            return
+        if self.timer.interval() != ACTIVE_MS:
+            self.timer.setInterval(ACTIVE_MS)
+        self._tick()
+
     def _tick(self):
         lbtn, esc, keys = self._state()
         pos = QCursor.pos()
         # a new press: seen going down, or a whole tap between two polls (held-key
         # auto-repeat also sets the tapped bit, but then the key is still down)
         pressed = [r for r, (down, tap) in keys.items() if (down and not self._was.get(r)) or (tap and not down)]
-        held = [r for r, (down, _) in keys.items() if down]
 
         if self.menu_visible():
             if not lbtn or esc:
@@ -139,19 +256,22 @@ class ShiftWheelWatcher(QObject):
         else:
             if lbtn:
                 if self._down_at is None:
+                    # a new press: keys already down (Shift then drag) don't count, nor does a
+                    # tap from before now that's still in the key-state bit
                     self._down_at = pos
                     self._fired = False
+                    self._armed = ""
+                    pressed = []
+                if pressed:
+                    self._armed = pressed[0]
                 moved = (pos - self._down_at).manhattanLength() >= DRAG_THRESHOLD
-                ring = (pressed or held or [None])[0]
-                if self.enabled and moved and ring and not self._fired:
+                # the drag image can appear just after the key: stay armed until the button is up
+                if moved and self._armed and not self._fired and self.can_open():
                     self._fired = True
-                    # in excluded apps Shift+drag belongs to the app (Settings → Behaviour)
-                    if not (self.excluded and foreground_exe() in self.excluded):
-                        self._idle_ticks = 0
-                        self._pending_tap = 0
-                        self._shown_at = pos
-                        self.show_menu.emit(pos, ring)
+                    self._idle_ticks = 0
+                    self._pending_tap = 0
+                    self._shown_at = pos
+                    self.show_menu.emit(pos, self._armed)
             else:
-                self._down_at = None
-                self._fired = False
+                self._reset()
         self._was = {r: down for r, (down, _) in keys.items()}

@@ -14,13 +14,29 @@ from PySide6.QtGui import (QAction, QColor, QCursor, QDesktopServices, QGuiAppli
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QFileDialog, QMenu, QSystemTrayIcon, QWidget
 
-from . import (__version__, archive, compresswin, convert, extras, fileops, glass, hotkey, imaging, keys, media,
-               mediawin, ocr, ocrwin, office, printwin, report, saveas, sounds, themes, tools, tools2)
+from . import __version__, fileops, glass, hotkey, keys, sounds, themes
 from .radial import Item, RadialMenu
 from .settings import Settings, SettingsWindow, WelcomeWindow
 from .toasts import ToastStack
-from .trigger import ShiftWheelWatcher
-from .util import UserError, call_with_progress, category, file_size, human_size, keep, release
+from .trigger import FILE_MANAGERS, ShiftWheelWatcher
+from .util import LazyModule, UserError, call_with_progress, category, file_size, human_size, keep, release
+
+# Tools load the first time they're used: at rest ShiftWheel only has the wheel in memory.
+archive = LazyModule("shiftwheel.archive")
+compresswin = LazyModule("shiftwheel.compresswin")
+convert = LazyModule("shiftwheel.convert")
+extras = LazyModule("shiftwheel.extras")
+imaging = LazyModule("shiftwheel.imaging")
+media = LazyModule("shiftwheel.media")
+mediawin = LazyModule("shiftwheel.mediawin")
+ocr = LazyModule("shiftwheel.ocr")
+ocrwin = LazyModule("shiftwheel.ocrwin")
+office = LazyModule("shiftwheel.office")
+printwin = LazyModule("shiftwheel.printwin")
+report = LazyModule("shiftwheel.report")
+saveas = LazyModule("shiftwheel.saveas")
+tools = LazyModule("shiftwheel.tools")
+tools2 = LazyModule("shiftwheel.tools2")
 
 APP_NAME = "ShiftWheel"
 REPO_URL = "https://github.com/Aditya-Prakash-047/ShiftWheel-releases"
@@ -79,8 +95,8 @@ MEDIA_HINTS = {"Compress": "Smaller MP4 · target size", "Rotate": "Turn 90° cl
                "Metadata": "Title · artist · year"}
 IMAGE_PRINT = ["ID Card", "Passport", "Scan", "Print"]
 PDF_PRINT = ["Print", "ID Card", "Scan"]
-PRINT_WINDOWS = {"ID Card": printwin.IDCardWindow, "Passport": printwin.PassportWindow,
-                 "Scan": printwin.ScanWindow, "Print": printwin.PrintWindow}
+PRINT_WINDOWS = {"ID Card": "IDCardWindow", "Passport": "PassportWindow", "Scan": "ScanWindow",
+                 "Print": "PrintWindow"}
 
 
 # ---------------------------------------------------------------- background jobs
@@ -181,6 +197,11 @@ class ShiftWheelApp(QObject):
         self.settings = Settings()
         self.settings.apply()
         self.pool = QThreadPool.globalInstance()
+        # conversions never take the machine from a game or the app you're using
+        self.pool.setMaxThreadCount(max(2, (os.cpu_count() or 4) // 2))
+        if hasattr(self.pool, "setThreadPriority"):
+            from PySide6.QtCore import QThread
+            self.pool.setThreadPriority(QThread.LowPriority)
         self.windows: list[QWidget] = []
         self.toasts = ToastStack()
         self.menu = RadialMenu(self.build_rings, self.describe)
@@ -226,7 +247,7 @@ class ShiftWheelApp(QObject):
         m.addAction("Open a file…", self.open_dialog)
         m.addSeparator()
         m.addAction("Settings…", self.open_settings)
-        m.addAction("Check for updates…", lambda: self.updates.check(quiet=False))
+        self.act_update = m.addAction("Check for updates…", self._tray_update)
         m.addAction("How to use", self.show_welcome)
         m.addAction("What's new", lambda: self.open_about(1))
         m.addAction("About / credits", lambda: self.open_about(0))
@@ -236,12 +257,14 @@ class ShiftWheelApp(QObject):
         self.apply_look()
         # "Match Windows": follow light/dark live
         self.qapp.styleHints().colorSchemeChanged.connect(lambda *_: self.apply_look())
-        QTimer.singleShot(1500, self.sounds.preload)       # decode sounds off the start-up path
+        self._trim_timer = QTimer(self, singleShot=True, interval=30_000, timeout=self._trim)
+        self._trim_timer.start()
         self.tray.setContextMenu(m)
         self.tray.activated.connect(self._tray_click)
         self.tray.show()
         from .updatectl import UpdateController
         self.updates = UpdateController(self)
+        self.updates.status_changed.connect(self._update_tray_label)
         self.updates.start()
 
     def apply_look(self):
@@ -262,6 +285,8 @@ class ShiftWheelApp(QObject):
     def _apply_keys(self):
         self.watcher.set_bindings(self.settings.ring_keys())
         self.watcher.excluded = self.settings.excluded_apps()
+        self.watcher.only_in = FILE_MANAGERS | self.settings.allowed_apps() \
+            if self.settings.get("wheel_where") == "files" else None
 
     def _ring_key_label(self, ring: str) -> str:
         key = self.settings.ring_keys().get(ring)
@@ -270,7 +295,24 @@ class ShiftWheelApp(QObject):
             key = self.settings.ring_keys().get(cur)       # the same key again cycles
         return keys.label(key) if key else ""
 
+    def _trim(self):
+        """Nothing happening: give memory back (what a tray app should do between uses)."""
+        if self.windows or self.menu.isVisible() or self.pool.activeThreadCount():
+            self._trim_timer.start()
+            return
+        import gc
+        self.sounds.release()
+        if "shiftwheel.ocr" in sys.modules:
+            sys.modules["shiftwheel.ocr"].release_engine()
+        gc.collect()
+        if sys.platform == "win32":
+            import ctypes
+            k32 = ctypes.windll.kernel32
+            k32.GetCurrentProcess.restype = ctypes.c_void_p
+            ctypes.windll.psapi.EmptyWorkingSet(ctypes.c_void_p(k32.GetCurrentProcess()))
+
     def _drag_popup(self, pos, ring: str = ""):
+        self._trim_timer.start()
         self.apply_look()        # picks up a Windows accent/mode change since last time
         self._last_key_ring = ring
         self.menu.want_ring = ring
@@ -417,7 +459,60 @@ class ShiftWheelApp(QObject):
             traceback.print_exc()
             self.toasts.error(f"Couldn't open {name}", friendly_error(e))
 
+    def _expected_files(self, kind: str, name: str, cat: str, paths: list[str]) -> tuple[int, str, int]:
+        """(files this job would create, why, pages for a PDF split). (0, …) when unknown or few."""
+        def pdf_pages():
+            return sum(imaging.fitz.open(p).page_count for p in paths)
+        try:
+            if cat == "pdf" and name == "Split":
+                n = pdf_pages()
+                return n, f"Split makes one PDF per page, and this has {n:,} pages.", n
+            if cat == "pdf" and kind == "convert" and name in ("JPG", "PNG"):
+                n = pdf_pages()
+                return n, f"Each of the {n:,} pages becomes its own {name} image.", 0
+            if cat == "pdf" and name == "Extract":
+                n = 0
+                for p in paths:
+                    doc = imaging.fitz.open(p)
+                    n += sum(len(doc.get_page_images(i)) for i in range(doc.page_count))
+                return n, f"The PDF holds {n:,} pictures, and each is saved as its own file.", 0
+            if cat == "slides" and kind == "convert" and name in ("JPG", "PNG"):
+                from pptx import Presentation
+                n = sum(len(Presentation(p).slides) for p in paths if p.lower().endswith(".pptx"))
+                return n, f"Each of the {n:,} slides becomes its own {name} image.", 0
+            if kind == "archive" and name == "Extract":
+                n = sum(archive.member_count(p) for p in paths)
+                return n, f"The archive holds {n:,} files.", 0
+            if kind == "convert" and len(paths) > 1:
+                return len(paths), f"Each of the {len(paths):,} files you dropped is converted.", 0
+        except Exception:  # noqa: BLE001 - can't tell in advance: don't stand in the way
+            pass
+        return 0, "", 0
+
     def run_item(self, item: Item, paths: list[str]):
+        """Ask first when the job would create a lot of files (Settings → Saving)."""
+        kind, name = item.key.split(":", 1)
+        cat = category(paths[0])
+        same = [p for p in paths if category(p) == cat]
+        self._split_every = 1
+        if kind == "file":
+            self._run_item(item, paths)
+            return
+        n, why, pages = self._expected_files(kind, name, cat, same)
+        if n < self.settings.get("confirm_files"):
+            self._run_item(item, paths)
+            return
+
+        def go(every: int):
+            self._split_every = every
+            self._run_item(item, paths)
+        from .confirmwin import ConfirmManyWindow
+        folder = str(Path(paths[0]).parent)
+        where = f"Saved in {folder}" + (", in a folder of their own." if name in ("Split", "Extract") else ".")
+        self.open_window(ConfirmManyWindow(name if name in ("Split", "Extract") else f"Convert to {name}",
+                                           n, why, where, go, pages))
+
+    def _run_item(self, item: Item, paths: list[str]):
         self._all_paths = list(paths)
         cat = category(paths[0])
         paths = [p for p in paths if category(p) == cat]
@@ -475,7 +570,7 @@ class ShiftWheelApp(QObject):
         if kind == "print":
             # ID Card / Scan / Print take images and PDFs together (e.g. front.jpg + back.pdf)
             mixed = [p for p in self._all_paths if category(p) in ("image", "pdf")] or paths
-            self._open_tool(name, PRINT_WINDOWS[name], mixed if name != "Passport" else paths[:1])
+            self._open_tool(name, getattr(printwin, PRINT_WINDOWS[name]), mixed if name != "Passport" else paths[:1])
             return
         if cat in ("video", "audio"):
             self.run_media(kind, name, cat, paths)
@@ -499,7 +594,8 @@ class ShiftWheelApp(QObject):
             elif name == "Compress":
                 self._open_tool(name, compresswin.pdf_window, paths)
             else:
-                fns = {"Split": imaging.split_pdf,
+                every = getattr(self, "_split_every", 1)
+                fns = {"Split": lambda p: imaging.split_pdf(p, every),
                        "Rotate": lambda p: [imaging.rotate_pdf(p)], "Extract": imaging.extract_pdf_images}
                 f = fns[name]
                 self.submit(f"tool:{name}", paths, lambda: [o for p in paths for o in f(p)],
@@ -657,6 +753,7 @@ class ShiftWheelApp(QObject):
                         on_done=lambda _r: copied(fileops.checksum_text(sums["r"])))
 
     def open_window(self, w: QWidget):
+        self._trim_timer.start()
         if hasattr(w, "submit"):
             w.submit = self.submit
         self.windows.append(w)
@@ -669,6 +766,7 @@ class ShiftWheelApp(QObject):
     def submit(self, action: str, srcs: list, fn, working: str = "Working…", extra: str = "", on_done=None):
         """Run in the background. A spinner card appears only if it takes > 150 ms.
         on_done(result) replaces the usual 'done' card (for results that aren't files)."""
+        self._trim_timer.start()
         state = {"card": None, "finished": False}
         names = Path(srcs[0]).name if len(srcs) == 1 else f"{len(srcs)} files"
 
@@ -754,6 +852,16 @@ class ShiftWheelApp(QObject):
         pos = QCursor.pos() if g.contains(QCursor.pos()) else g.center()
         self.menu.popup(pos, files)
         self.menu.activateWindow()
+
+    def _tray_update(self):
+        if self.updates.available is not None:
+            self.updates.install()
+        else:
+            self.updates.check(quiet=False)
+
+    def _update_tray_label(self, _status: str = ""):
+        rel = self.updates.available
+        self.act_update.setText(f"Update to {rel.version}…" if rel is not None else "Check for updates…")
 
     def open_about(self, page: int = 0):
         from .aboutwin import AboutWindow
