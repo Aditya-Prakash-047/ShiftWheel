@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QColorDialog, QComboBox, QDoub
 
 from . import extras as X
 from . import media as M
+from .util import CONFIG
 from .convert import open_pdf, open_preview
 from .glass import qimage_from_pil
 from .mediawin import RangeBar
@@ -354,7 +355,15 @@ class SplitWindow(ToolWindow):
 
     def save(self):
         ranges, path = self._ranges(), self.path
-        self.run(lambda progress=None: X.split_video(path, ranges, progress), "Splitting…", f"{len(ranges)} pieces")
+
+        def go(_every=1):
+            self.run(lambda progress=None: X.split_video(path, ranges, progress), "Splitting…", f"{len(ranges)} pieces")
+        if len(ranges) < CONFIG.get("confirm_files", 10):
+            return go()
+        from .confirmwin import ConfirmManyWindow
+        self._confirm = ConfirmManyWindow("Split", len(ranges), f"{path.name} is cut into {len(ranges):,} pieces.",
+                                          f"Saved in {path.parent}.", go)
+        self._confirm.present()
 
 
 # ================================================================ VIDEO: REDACT

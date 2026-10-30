@@ -125,6 +125,9 @@ def test_each_wheel_has_its_key_and_taps_are_never_missed():
     state = {"visible": False, "got_drag": False}
     w = ShiftWheelWatcher(lambda: state["visible"], lambda: state["got_drag"])
     w.set_bindings({"Convert": "shift", "Tools": "ctrl", "Actions": "alt"}, KEY_VK)
+    w.only_in = None
+    import shiftwheel.trigger as T0
+    T0.drag_image_visible, saved_image = (lambda: True), T0.drag_image_visible
     shown, switched = [], []
     w.show_menu.connect(lambda pos, ring: shown.append(ring))
     w.switch_ring.connect(switched.append)
@@ -160,6 +163,7 @@ def test_each_wheel_has_its_key_and_taps_are_never_missed():
     state["visible"] = False
     w._fired = False
     w._down_at = QPoint(-1000, -1000)
+    w._was = {}
     w.excluded = {"pytest-host.exe"}
     import shiftwheel.trigger as T
     saved, T.foreground_exe = T.foreground_exe, lambda: "pytest-host.exe"
@@ -167,6 +171,7 @@ def test_each_wheel_has_its_key_and_taps_are_never_missed():
         run((True, False, keys(Convert=(True, False))))
     finally:
         T.foreground_exe = saved
+    T0.drag_image_visible = saved_image
     assert shown == ["Tools"]                            # excluded app: no wheel
 
 

@@ -16,7 +16,9 @@ import sys
 import wave
 from pathlib import Path
 
-import numpy as np
+from .util import LazyModule
+
+np = LazyModule("numpy")          # only when a sound pack is first generated
 
 if sys.platform == "win32":                       # must be set before QGuiApplication exists
     os.environ.setdefault("QT_MEDIA_BACKEND", "windows")
@@ -214,11 +216,8 @@ class Player:
         self.files: dict[str, str] = {}
         self._voices: dict[str, list] = {}
         self._next: dict[str, int] = {}
-        try:
-            from PySide6.QtMultimedia import QSoundEffect  # noqa: F401
-            self.available = True
-        except Exception:
-            self.available = False
+        import importlib.util
+        self.available = importlib.util.find_spec("PySide6.QtMultimedia") is not None
 
     def configure(self, enabled: bool, volume: int, pack: str, on: dict, custom: dict, theme_files: dict,
                   theme_pack: str = "santra"):
@@ -255,6 +254,11 @@ class Player:
         self._voices[event] = voices
         self._next[event] = 0
         return voices
+
+    def release(self):
+        """Free the loaded sounds (they reload at the next wheel)."""
+        self._voices = {}
+        self._next = {}
 
     def preload(self):
         """Decode every sound now, so the first tick isn't late."""

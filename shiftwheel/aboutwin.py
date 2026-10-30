@@ -2,11 +2,13 @@
 credits for the projects and libraries it is built on. Same look as Settings."""
 from __future__ import annotations
 
+import platform
 import sys
+import urllib.parse
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QUrl
-from PySide6.QtGui import QDesktopServices, QPixmap
+from PySide6.QtCore import Qt, QTimer, QUrl, qVersion
+from PySide6.QtGui import QDesktopServices, QGuiApplication, QPixmap
 from PySide6.QtWidgets import (QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QStackedWidget,
                                QTextBrowser, QVBoxLayout, QWidget)
 
@@ -28,8 +30,10 @@ LINKS = [
 APP_LINKS = [
     ("Downloads", f"{RELEASES}/releases/latest"),
     ("All releases", f"{RELEASES}/releases"),
-    ("Report a problem", f"{RELEASES}/issues/new"),
 ]
+PRIVACY = ("Your files stay on your computer: every conversion runs locally and nothing is uploaded. ShiftWheel "
+           "connects to the internet only to check GitHub for updates, which you can turn off in "
+           "Settings → Behaviour.")
 
 # (name, what it gives ShiftWheel, licence, url)
 CREDITS = [
@@ -61,6 +65,27 @@ def release_notes() -> str:
     return "- Release notes aren't included in this copy."
 
 
+def system_info() -> str:
+    """What a bug report needs. Nothing personal: no user name, no file names."""
+    from . import updater
+    kind = {"installed": "installed", "portable": "portable", "mac-app": "macOS app"}.get(
+        updater.install_kind(), "from source")
+    return (f"ShiftWheel {__version__} ({kind})\n"
+            f"{platform.system()} {platform.release()} ({platform.machine()}, build {platform.version()})\n"
+            f"Python {platform.python_version()} · Qt {qVersion()}")
+
+
+def report_url() -> str:
+    body = f"**What happened?**\n\n\n**What did you expect?**\n\n\n**System**\n```\n{system_info()}\n```\n"
+    return f"{RELEASES}/issues/new?" + urllib.parse.urlencode({"body": body})
+
+
+def licence_text() -> str:
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[1]))
+    p = base / "LICENSE"
+    return p.read_text(encoding="utf-8") if p.exists() else "MIT License. See the LICENSE file."
+
+
 def _link_button(label: str, url: str, primary: bool = False) -> QPushButton:
     b = QPushButton(label)
     if primary:
@@ -78,10 +103,10 @@ def _section(text: str) -> QLabel:
 
 
 class AboutWindow(GlassWindow):
-    PAGES = ("About", "What's new", "Credits")
+    PAGES = ("About", "What's new", "Credits", "Licence")
 
     def __init__(self, updates=None, page: int = 0):
-        super().__init__("About ShiftWheel", size=(720, 640))
+        super().__init__("About ShiftWheel", size=(760, 740))
         self.updates = updates          # updatectl.UpdateController, or None
         tabs = QHBoxLayout()
         self.tab_buttons = []
@@ -95,7 +120,7 @@ class AboutWindow(GlassWindow):
         self.body.addLayout(tabs)
         self.stack = QStackedWidget()
         self.body.addWidget(self.stack, 1)
-        for build in (self._about, self._whats_new, self._credits):
+        for build in (self._about, self._whats_new, self._credits, self._licence):
             page_w = QWidget()
             page_w.setObjectName("page")
             page_w.setStyleSheet("QWidget#page { background: transparent; }")
@@ -105,7 +130,7 @@ class AboutWindow(GlassWindow):
             build(lay)
             self.stack.addWidget(page_w)
         foot = QHBoxLayout()
-        note = QLabel(f"ShiftWheel {__version__}  ·  MIT licence  ·  originals are never modified")
+        note = QLabel(f"© 2026 {CREATOR['name']}  ·  MIT licence")
         note.setObjectName("dim")
         foot.addWidget(note)
         foot.addStretch(1)
@@ -181,6 +206,7 @@ class AboutWindow(GlassWindow):
         row = QHBoxLayout()
         for label, url in APP_LINKS:
             row.addWidget(_link_button(label, url))
+        row.addWidget(_link_button("Report a problem", report_url()))
         row.addStretch(1)
         lay.addLayout(row)
 
@@ -202,7 +228,38 @@ class AboutWindow(GlassWindow):
             self.upd_install.clicked.connect(lambda: self.updates.install())
         urow.addWidget(self.upd_install)
         lay.addLayout(urow)
+
+        lay.addWidget(_section("Privacy"))
+        privacy = QLabel(PRIVACY)
+        privacy.setObjectName("dim")
+        privacy.setWordWrap(True)
+        lay.addWidget(privacy)
+
+        lay.addWidget(_section("System"))
+        srow = QHBoxLayout()
+        info = QLabel(system_info())
+        info.setObjectName("dim")
+        info.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        srow.addWidget(info, 1)
+        self.copy_btn = QPushButton("Copy details")
+        self.copy_btn.clicked.connect(self._copy_info)
+        srow.addWidget(self.copy_btn, 0, Qt.AlignTop)
+        lay.addLayout(srow)
         lay.addStretch(1)
+
+    def _copy_info(self):
+        QGuiApplication.clipboard().setText(system_info())
+        self.copy_btn.setText("Copied ✓")
+        QTimer.singleShot(1400, lambda: self.copy_btn.setText("Copy details"))
+
+    # ------------------------------------------------------------ Licence
+    def _licence(self, lay):
+        view = self._notes_view()
+        view.setPlainText(licence_text())
+        lay.addWidget(view, 1)
+        hint = QLabel("Bundled components keep their own licences: see Credits.")
+        hint.setObjectName("dim")
+        lay.addWidget(hint)
 
     def _update_status(self, text: str):
         try:

@@ -16,7 +16,7 @@ def qapp():
 
 def test_about_window_has_every_page():
     w = aboutwin.AboutWindow(None, page=1)
-    assert [b.text() for b in w.tab_buttons] == ["About", "What's new", "Credits"]
+    assert [b.text() for b in w.tab_buttons] == ["About", "What's new", "Credits", "Licence"]
     assert w.stack.currentIndex() == 1 and w.tab_buttons[1].isChecked()
     assert __version__ in w.upd_status.text() and not w.upd_check.isEnabled()      # no controller here
     w.show_page(2)
