@@ -70,8 +70,12 @@ def system_info() -> str:
     from . import updater
     kind = {"installed": "installed", "portable": "portable", "mac-app": "macOS app"}.get(
         updater.install_kind(), "from source")
+    release = platform.release()
+    build = platform.version()
+    if sys.platform == "win32" and release == "10" and int(build.rsplit(".", 1)[-1] or 0) >= 22000:
+        release = "11"                  # Windows 11 still calls itself 10 to older Python versions
     return (f"ShiftWheel {__version__} ({kind})\n"
-            f"{platform.system()} {platform.release()} ({platform.machine()}, build {platform.version()})\n"
+            f"{platform.system()} {release} ({platform.machine()}, build {build})\n"
             f"Python {platform.python_version()} · Qt {qVersion()}")
 
 
