@@ -86,8 +86,8 @@ def report_url() -> str:
 
 def licence_text() -> str:
     base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[1]))
-    p = base / "LICENSE"
-    return p.read_text(encoding="utf-8") if p.exists() else "MIT License. See the LICENSE file."
+    parts = [(base / n).read_text(encoding="utf-8") for n in ("LICENSE", "THIRD-PARTY-NOTICES.md") if (base / n).exists()]
+    return "\n\n".join(parts) or "MIT License. See the LICENSE file."
 
 
 def _link_button(label: str, url: str, primary: bool = False) -> QPushButton:
@@ -261,9 +261,6 @@ class AboutWindow(GlassWindow):
         view = self._notes_view()
         view.setPlainText(licence_text())
         lay.addWidget(view, 1)
-        hint = QLabel("Bundled components keep their own licences: see Credits.")
-        hint.setObjectName("dim")
-        lay.addWidget(hint)
 
     def _update_status(self, text: str):
         try:

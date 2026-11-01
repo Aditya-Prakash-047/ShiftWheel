@@ -1,7 +1,6 @@
 """Themes, light/dark, validated settings, where results are saved and how they are named."""
 from __future__ import annotations
 
-from pathlib import Path
 
 import pytest
 from PySide6.QtCore import QSettings

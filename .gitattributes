@@ -1,0 +1,9 @@
+# Git stores text with LF; only Windows-only files check out with CRLF.
+* text=auto eol=lf
+*.iss text eol=crlf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.png binary
+*.ico binary
+*.icns binary
+*.wav binary

@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   e2e:
@@ -25,7 +25,7 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt pyautogui pywinauto
+          pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Run end-to-end scenarios
         run: python demo/e2e_windows.py
@@ -35,19 +35,13 @@ jobs:
         shell: bash
         run: cat e2e_out/results.md >> $GITHUB_STEP_SUMMARY || true
 
-      - name: Save results to the e2e-output branch
+      - name: Keep the results (screenshots, video, logs)
         if: always()
-        shell: bash
-        run: |
-          mkdir -p /tmp/o && cp -r e2e_out/* /tmp/o/ || true
-          git config user.name "github-actions"
-          git config user.email "github-actions@users.noreply.github.com"
-          git checkout --orphan e2e-output
-          git rm -rfq . || true
-          cp -r /tmp/o/* . || true
-          git add -A
-          git commit -qm "E2E results ${GITHUB_SHA}" || true
-          git push -f origin e2e-output
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-results
+          path: e2e_out/
+          retention-days: 14
 
       - name: Fail if any scenario failed
         shell: bash

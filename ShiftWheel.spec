@@ -18,7 +18,7 @@ for pkg in ("pillow_heif", "imageio_ffmpeg", "rapidocr", "onnxruntime", "omegaco
 
 a = Analysis(
     ["run.py"],
-    datas=[("shiftwheel/assets", "shiftwheel/assets"), ("RELEASE_NOTES.md", "."), ("LICENSE", ".")] + datas,
+    datas=[("shiftwheel/assets", "shiftwheel/assets"), ("RELEASE_NOTES.md", "."), ("LICENSE", "."), ("THIRD-PARTY-NOTICES.md", ".")] + datas,
     binaries=bins,
     hiddenimports=["win32com.client", "pythoncom", "PySide6.QtNetwork", "PySide6.QtPrintSupport",
                    "PySide6.QtMultimedia", "cv2", "pymupdf", "AppKit",
@@ -76,8 +76,9 @@ if IS_MAC:
         info_plist={
             "CFBundleName": "ShiftWheel",
             "CFBundleDisplayName": "ShiftWheel",
-            "CFBundleShortVersionString": "1.3.0",
-            "CFBundleVersion": "1.3.0",
+            "CFBundleShortVersionString": "1.3.1",
+            "CFBundleVersion": "1.3.1",
+            "NSHumanReadableCopyright": "Copyright (c) 2026 Aditya Prakash",
             "LSUIElement": True,                 # menu-bar app, no Dock icon
             "LSMinimumSystemVersion": "11.0",
             "NSHighResolutionCapable": True,

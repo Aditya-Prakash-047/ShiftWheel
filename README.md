@@ -1,17 +1,26 @@
 # ShiftWheel
 
-Start dragging any file in File Explorer, tap a key, and drop it on a slice of the wheel. Convert it, edit it, print it or act on it, right where you are. Everything happens on your PC; nothing is uploaded.
+[![Latest release](https://img.shields.io/badge/download-latest-FF5200)](https://github.com/Aditya-Prakash-047/ShiftWheel-releases/releases/latest)
+![Windows 10/11](https://img.shields.io/badge/Windows-10%2F11-0078D4)
+![macOS 11+](https://img.shields.io/badge/macOS-11%2B-555555)
+![Licence: MIT](https://img.shields.io/badge/licence-MIT-2EA44F)
+
+Start dragging any file in File Explorer or Finder, tap a key, and drop it on a slice of the wheel. Convert it, edit it, print it or act on it, right where you are. Everything happens on your computer; nothing is uploaded.
+
+**[Download](https://github.com/Aditya-Prakash-047/ShiftWheel-releases/releases/latest)** · [Install](#install) · [Changelog](CHANGELOG.md) · [Report a problem](https://github.com/Aditya-Prakash-047/ShiftWheel-releases/issues)
 
 ![Seven wheel themes, each in light and dark](docs/themes.png)
 
 ## How to use
 
 1. Start dragging a file (or several, or a folder) in File Explorer or on the desktop.
-2. Tap a key — like Santra: **Shift** converts, **Ctrl** opens tools, **Alt** opens file actions. The wheel opens under the cursor; release the key and keep dragging.
+2. While dragging, tap a key — like Santra: **Shift** converts, **Ctrl** opens tools, **Alt** opens file actions. The wheel opens under the cursor; release the key and keep dragging.
 3. Drop the file on a slice. The result is saved **next to the original**; the original is never changed.
 4. Tap another key to switch wheels, or the same key again to go round them: **Convert → Tools → Print → Actions**.
 
 No dragging needed: select a file and press **Ctrl + Alt + W** — the wheel opens at the mouse. In the wheel, **arrow keys** choose, **Enter** applies, **1–9** pick a slice, **Tab** switches wheel, **Esc** cancels. Also: right-click any file → **ShiftWheel…**, **Send to → ShiftWheel**, or double-click the tray icon.
+
+The order matters: **drag first, then the key**. Shift then drag still selects files as usual, and by default the wheel works only in file managers, so Chrome, games and other apps are left alone (Settings → Behaviour).
 
 Every action ends with a notification showing what changed, with **Open**, **Show in folder** and **Undo**, and a soft tick plays as slices light up (Santra's sound, recreated).
 
@@ -136,39 +145,96 @@ ShiftWheel updates itself like other desktop apps: once a day (or **Check for up
 
 ### macOS 11+
 
-**ShiftWheel-mac-apple-silicon.dmg** or **ShiftWheel-mac-intel.dmg** from the release (built and self-tested by **Actions → Build macOS app**): open it and drag ShiftWheel to Applications, or run `install-mac.sh`. It lives in the menu bar. Allow **Screen Recording** in System Settings for the Liquid glass theme to show what's behind it.
+Download **ShiftWheel-mac-apple-silicon.dmg** (M1 and later) or **ShiftWheel-mac-intel.dmg** from the [release page](https://github.com/Aditya-Prakash-047/ShiftWheel-releases/releases/latest), open it, and drag ShiftWheel onto Applications. It lives in the menu bar.
+
+The app isn't notarized yet, so macOS blocks the first launch: open it once, then go to **System Settings → Privacy & Security → Open Anyway**. Or run this in Terminal, which installs the right build and skips the warning:
+
+```bash
+curl -fsSL https://github.com/Aditya-Prakash-047/ShiftWheel-releases/releases/latest/download/install-mac.sh | bash
+```
+
+Allow **Screen Recording** when asked if you want the Liquid glass theme to show what's behind it. The other themes don't need it.
+
+### Uninstall
+
+- **Windows:** Settings → Apps → Installed apps → ShiftWheel → Uninstall. This also removes the right-click entries, start-up entry and settings.
+- **macOS:** quit from the menu bar and delete ShiftWheel from Applications.
 
 Office: Excel/PowerPoint/old Word files are exported with Microsoft Office if it's installed (perfect fidelity), otherwise LibreOffice if installed. Spreadsheets and CSV also work with neither.
 
 ## Run from source
+
+Python 3.11 or newer:
 
 ```bash
 pip install -r requirements.txt
 python -m shiftwheel
 ```
 
+To work on it, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Tests
 
 ```bash
-python -m pytest -q            # 80+ tests: every engine, every window, every slice of every wheel
-python run.py --selftest       # what CI runs inside the built .exe
+python -m pytest -q            # every engine, every window, every slice of every wheel
+python run.py --selftest       # checks that everything is packaged and working in a built app
 ```
 
 - `tests/test_printing.py` measures the printed card (54 mm) on the generated PDF **and** on Qt's print output.
-- `tests/test_wheel_matrix.py` builds the real wheel for a photo, PDF, video, audio, spreadsheet, Word file, archive, folder and a mixed selection, triggers **every slice**, and checks each one produced a file or opened its window.
-- **CI (Windows):** unit tests → portable exe + installer → `--selftest` inside both builds (FFmpeg, OCR models, OpenCV, printing, every window) → silent install / run / uninstall.
-- **End-to-end (Windows):** `demo/e2e_windows.py` moves the real mouse (on your own PC run it with `--local`: test files go to `%TEMP%` and your Desktop, wallpaper and resolution are left alone): drags files in File Explorer and on the desktop, presses Shift, switches rings, drops on slices, drives the tool windows and checks every output (e.g. it measures the ID card on the saved PDF). Results and a screen recording go to the `e2e-output` branch.
+- `tests/test_wheel_matrix.py` builds the real wheel for each file type and triggers every slice.
+- `tests/test_wheel_rules.py` covers when the wheel may open, and the update hand-over.
+- **CI** runs for release tags or by hand: tests, build, self-test in each build, a silent install and uninstall on Windows, and `.dmg` builds on macOS.
+- **End-to-end (Windows):** `demo/e2e_windows.py` moves the real mouse through 57 scenarios. On your own PC, run it with `--local`, because otherwise it uses your Desktop for test files.
 
-Logs: `%LOCALAPPDATA%\ShiftWheel\log.txt`.
+Logs: `%LOCALAPPDATA%\ShiftWheel\log.txt` on Windows, `~/Library/Logs/ShiftWheel/log.txt` on macOS.
 
-## How the Shift + drag works
+## How it works
 
-A tray app polls the mouse button and Shift key (`GetAsyncKeyState`, no hooks, no admin). When the left button is held, the mouse has moved and Shift goes down, a borderless always-on-top window (the wheel) appears under the cursor and accepts the file drop like any drop target. It always accepts as *copy*, so the original is never moved even though Shift normally means "move" in Explorer.
+A tray app polls the mouse button, and reads the keys only while a drag is possible (`GetAsyncKeyState` on Windows, `NSEvent` on macOS: no hooks, no admin, no special permission). The wheel opens when all of these hold:
 
-## Credits & licences
+1. The key goes down **after** the mouse button.
+2. The app in front is a file manager, or one you allowed.
+3. On Windows Explorer, a real file drag is under way (its drag image exists).
 
-- Built on [DragShift](https://github.com/llamaboi55/DragShift) (MIT) — the wheel, glass rendering, image/PDF tools and test harness. ShiftWheel adds the Print ring (ID card, passport, scan, exact-size printing), video & audio, Excel/PowerPoint/CSV, archives and OCR.
-- Inspired by [Santra](https://the reference design) (macOS) and Open-Santra. No code from either.
-- Bundled: FFmpeg via imageio-ffmpeg (GPL build), PyMuPDF (AGPL), RapidOCR / PP-OCR models (Apache-2.0), OpenCV (Apache-2.0), Qt for Python (LGPL). If you ever distribute builds publicly, those licences apply to the distributed app (practically: keep the source public).
+The wheel is then a borderless, always-on-top window that accepts the drop as an ordinary drag-and-drop target, so it works with any file manager without hooking anything.
 
-ShiftWheel's own code: MIT (see LICENSE).
+## Performance
+
+- At rest it checks one key state 25 times a second, or twice a second when a game or fullscreen app has the screen.
+- Tools and heavy libraries load on first use. Memory is released 30 seconds after you finish.
+- Conversions run at low priority on at most half the CPU cores.
+
+## Privacy
+
+Files are processed on your computer, nothing is uploaded, and there is no telemetry. The only network use is the update check and download from GitHub, which can be turned off in Settings → Behaviour. See [SECURITY.md](SECURITY.md).
+
+## Troubleshooting
+
+| Problem | Try |
+|---|---|
+| The wheel doesn't open | Drag the file first, then tap the key. For apps other than file managers, see Settings → Behaviour. |
+| A shortcut says it's unavailable | Another app uses it: pick another in Settings → Keys. |
+| Windows warns on first launch | The app isn't code-signed yet: More info → Run anyway. |
+| Word, Excel or PowerPoint conversion fails | Install Microsoft Office or LibreOffice for old formats and exact layouts. |
+| Reporting a bug | About → Report a problem fills in your version. |
+
+## Project layout
+
+| Path | What's there |
+|---|---|
+| `shiftwheel/` | The app: `app.py` (tray, dispatch), `trigger.py` (when the wheel opens), `radial.py` (the wheel), `updater.py` and `updatectl.py` (updates), tool windows and engines |
+| `tests/` | Automated tests |
+| `demo/` | End-to-end desktop scripts |
+| `installer/`, `ShiftWheel.spec`, `packaging/` | Windows installer, PyInstaller build, Linux package (experimental) |
+| `docs/` | Screenshots and the [release checklist](docs/RELEASING.md) |
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Security reports: [SECURITY.md](SECURITY.md).
+
+## Credits and licences
+
+- Built on [DragShift](https://github.com/llamaboi55/DragShift) (MIT): the wheel, glass rendering, image and PDF tools, and test harness.
+- Design inspired by [Santra](https://the reference design) for macOS. Not affiliated; no code or audio from it.
+- ShiftWheel's own code is under the [MIT licence](LICENSE). Bundled components, including FFmpeg (GPL) and PyMuPDF (AGPL-3.0), keep their own licences: see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+

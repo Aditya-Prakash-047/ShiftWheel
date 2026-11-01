@@ -6,7 +6,6 @@ import shutil
 import subprocess
 import tarfile
 import zipfile
-from pathlib import Path
 
 import pytest
 from PIL import Image

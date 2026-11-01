@@ -33,7 +33,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt pyinstaller pytest
+          pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Run tests
         run: python -m pytest -q
@@ -50,12 +50,15 @@ jobs:
           set +e
           dist/ShiftWheel.app/Contents/MacOS/ShiftWheel --selftest
           code=$?
-          tail -n 40 "$HOME/.local/share/ShiftWheel/log.txt" 2>/dev/null || true
+          tail -n 40 "$HOME/Library/Logs/ShiftWheel/log.txt" 2>/dev/null || true
           exit $code
 
       - name: Make the disk image
         run: |
-          hdiutil create -volname ShiftWheel -srcfolder dist/ShiftWheel.app -ov -format UDZO "dist/${{ matrix.asset }}"
+          mkdir -p dist/dmg
+          cp -R dist/ShiftWheel.app dist/dmg/
+          ln -s /Applications dist/dmg/Applications     # drag the app onto this shortcut
+          hdiutil create -volname ShiftWheel -srcfolder dist/dmg -ov -format UDZO "dist/${{ matrix.asset }}"
           du -sh dist/ShiftWheel.app "dist/${{ matrix.asset }}"
 
       - uses: actions/upload-artifact@v4
