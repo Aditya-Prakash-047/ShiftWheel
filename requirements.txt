@@ -2,7 +2,7 @@
 PySide6==6.12.0
 pillow==13.0.0
 pillow-heif==1.8.1
-PyMuPDF==2.0; not (sys_platform == "darwin" and platform_machine == "x86_64")
+PyMuPDF==2.0; sys_platform != "darwin" or platform_machine != "x86_64"
 PyMuPDF==1.28.2; sys_platform == "darwin" and platform_machine == "x86_64"   # the last version with Intel Mac builds
 numpy==2.4.6
 python-docx==1.2.0
@@ -14,7 +14,7 @@ openpyxl==3.1.5                  # Excel / CSV
 xlrd==2.0.2                      # old .xls
 py7zr==1.1.4                     # .7z archives
 rapidocr==3.10.0                 # offline text recognition (models included)
-onnxruntime==1.31.0; not (sys_platform == "darwin" and platform_machine == "x86_64")
+onnxruntime==1.31.0; sys_platform != "darwin" or platform_machine != "x86_64"
 onnxruntime==1.23.2; sys_platform == "darwin" and platform_machine == "x86_64"   # the last version with Intel Mac builds
 pywin32==312; sys_platform == "win32"
 pyobjc-framework-Cocoa>=10; sys_platform == "darwin"
