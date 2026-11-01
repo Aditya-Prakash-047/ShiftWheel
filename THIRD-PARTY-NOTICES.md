@@ -22,5 +22,3 @@ ShiftWheel includes or is based on the following software. Each component stays 
 | Python-Markdown | Markdown documents | BSD-3-Clause | https://github.com/Python-Markdown/markdown |
 | Python | Runtime | PSF-2.0 | https://github.com/python/cpython |
 | pywin32 (Windows), PyObjC (macOS) | System integration | PSF-2.0, MIT | https://github.com/mhammond/pywin32 · https://github.com/ronaldoussoren/pyobjc |
-
-The default Santra theme, its wheel-slice shape and its tick sound are modelled on Santra (https://the reference design). ShiftWheel is not affiliated with Santra and includes none of its files.

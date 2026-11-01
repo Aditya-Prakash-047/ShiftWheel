@@ -90,15 +90,12 @@ class Settings:
         for new, old in RENAMED.items():
             if not self.q.contains(new) and self.q.contains(old):
                 self.q.setValue(new, self.q.value(old))
-        # 1.3.1 renamed the default theme and sound pack
-        for old, new in themes.OLD_KEYS.items():
-            for key in ("theme", "sound_pack"):
-                if self.q.value(key) == old:
-                    self.q.setValue(key, new)
-            if self.q.contains(f"custom/{old}"):
-                if not self.q.contains(f"custom/{new}"):
-                    self.q.setValue(f"custom/{new}", self.q.value(f"custom/{old}"))
-                self.q.remove(f"custom/{old}")
+        # a saved theme that no longer exists: the default takes over its customisation
+        gone = f"custom/{self.q.value('theme')}"
+        if self.q.value("theme") not in themes.THEMES and self.q.contains(gone):
+            if not self.q.contains(f"custom/{themes.DEFAULT_THEME}"):
+                self.q.setValue(f"custom/{themes.DEFAULT_THEME}", self.q.value(gone))
+            self.q.remove(gone)
         # 1.1 kept light/dark and accent globally: they become the current theme's own
         if self.q.contains("appearance") or self.q.contains("accent"):
             key = self.get("theme")
