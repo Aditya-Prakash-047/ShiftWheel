@@ -7,7 +7,7 @@ import subprocess
 
 import numpy as np
 import pytest
-from PIL import Image, ImageDraw
+from PIL import Image
 
 from shiftwheel import extras as X
 from shiftwheel import media as M
@@ -37,7 +37,7 @@ def _level(path, start, end, channel=None) -> float:
                         "-f", "f32le", "-acodec", "pcm_f32le", "-"], capture_output=True, check=True)
     info = M.probe(path)
     a = np.frombuffer(r.stdout, np.float32)
-    ch = 2 if "stereo" in str(info.__dict__) or len(a) % 2 == 0 and channel is not None else 1
+    2 if "stereo" in str(info.__dict__) or len(a) % 2 == 0 and channel is not None else 1
     if channel is not None:
         a = a.reshape(-1, 2)[:, channel]
     return float(np.abs(a).mean())
@@ -60,7 +60,7 @@ def test_split_points_and_video(clip):
 
 def test_redact_video_blur_and_box(clip):
     out = X.redact_video(clip, [X.Box(0, 0, 80, 60, 0, 1.5, blur=False), X.Box(100, 100, 60, 60, blur=True)])
-    f0, src0 = M.frame_image(out, 0.5, 240), M.frame_image(clip, 0.5, 240)
+    f0, _src0 = M.frame_image(out, 0.5, 240), M.frame_image(clip, 0.5, 240)
     k = 240 / M.probe(clip).height
     corner = f0.crop((2, 2, int(70 * k), int(50 * k)))
     assert max(corner.convert("L").getextrema()) < 30                            # solid black there

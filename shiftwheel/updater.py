@@ -112,7 +112,8 @@ def _get(url: str, timeout: float = 10.0):
 
 def fetch_latest(feed: str | None = None) -> Release:
     """The latest published release. Raises UserError with a readable reason."""
-    feed = feed or os.environ.get("SHIFTWHEEL_UPDATE_FEED") or FEED
+    custom = feed or os.environ.get("SHIFTWHEEL_UPDATE_FEED")
+    feed = custom or FEED
     try:
         with _get(feed) as r:
             data = json.loads(r.read().decode("utf-8"))
@@ -130,6 +131,9 @@ def fetch_latest(feed: str | None = None) -> Release:
         raise UserError("No stable release found.")
     assets = []
     for a in data.get("assets") or []:
+        url = str(a.get("browser_download_url") or "")
+        if not custom and not url.startswith(f"https://github.com/{REPO}/releases/download/"):
+            continue                    # only ever from our own release page
         digest = str(a.get("digest") or "")
         assets.append(Asset(a.get("name", ""), a.get("browser_download_url", ""), int(a.get("size") or 0),
                             digest.split(":", 1)[1].lower() if digest.startswith("sha256:") else ""))

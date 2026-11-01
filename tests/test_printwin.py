@@ -1,7 +1,6 @@
 """Print-ring windows open on real inputs, preview the right sheet, and save true-size PDFs."""
 from __future__ import annotations
 
-import numpy as np
 import pytest
 from PySide6.QtWidgets import QApplication
 

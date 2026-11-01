@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import shutil
-import subprocess
 
 import pytest
 from PIL import Image
