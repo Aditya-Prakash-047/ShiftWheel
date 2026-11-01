@@ -3,6 +3,7 @@
 - **Windows**: the installer now shows the publisher, licence and support links
 - **Safer updates**: downloaded only from this release page and checked against their SHA-256
 - **About → Licence** lists the licences of everything ShiftWheel bundles
+- The default theme and sound pack are now called **Santra**; your settings carry over
 - From 1.3: the wheel opens only when you drag first, then tap the key, and only in file managers; updates really install; about 7 MB of active memory once idle on Windows; it asks before creating many files
 
 ### Downloads

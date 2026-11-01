@@ -44,13 +44,13 @@ def test_every_outline_slices_cleanly(outline):
         assert not paths[0].intersects(paths[1]) or paths[0].intersected(paths[1]).isEmpty()
 
 
-def test_santra_slice_matches_the_site_geometry():
-    # the reference design: inner 48.64, outer 119.52, gap 4, corner 20.16 (their units)
-    p = wheelshape.santra_slice(QPointF(0, 0), math.pi / 2, 2 * math.pi / 7, 48.64, 119.52, 4.0, 20.16)
+def test_round_slice_geometry():
+    # reference size: inner 48.64, outer 119.52, gap 4, corner 20.16 (their units)
+    p = wheelshape.round_slice(QPointF(0, 0), math.pi / 2, 2 * math.pi / 7, 48.64, 119.52, 4.0, 20.16)
     r = p.boundingRect()
     assert -119.6 < r.top() < -115 and r.bottom() < -40                # reaches the outer edge, not the hub
     assert abs(r.center().x()) < 0.5                                   # centred at 12 o'clock
-    gap_left = wheelshape.santra_slice(QPointF(0, 0), math.pi / 2 - 2 * math.pi / 7, 2 * math.pi / 7,
+    gap_left = wheelshape.round_slice(QPointF(0, 0), math.pi / 2 - 2 * math.pi / 7, 2 * math.pi / 7,
                                           48.64, 119.52, 4.0, 20.16)
     assert p.intersected(gap_left).isEmpty()                           # the 4-unit gap is real
 
@@ -92,7 +92,7 @@ def test_keyboard_in_the_wheel():
 
 
 # ---------------------------------------------------------------- themes
-def test_santra_is_the_measured_design():
+def test_santra_is_the_default_design():
     t = themes.SANTRA
     assert t.light.hover_out.name() == "#ff5200" and t.light.text.name() == "#000000"
     assert t.shape.hub_label == "pill" and t.shape.gap > 0 and t.shape.corner > 20
@@ -166,7 +166,7 @@ def test_every_pack_has_every_sound():
             assert len(x) < sounds.RATE                                       # short
 
 
-def test_santra_tick_matches_the_original():
+def test_santra_tick_shape():
     x = sounds.synth("santra", "highlight")
     assert abs(len(x) / sounds.RATE - 0.060) < 0.001
     sp = np.abs(np.fft.rfft(x * np.hanning(len(x))))

@@ -1,4 +1,4 @@
-"""Santra's extra formats: EPUB, Markdown export, PDF → Excel / PowerPoint / Markdown / EPUB,
+"""Extra formats: EPUB, Markdown export, PDF → Excel / PowerPoint / Markdown / EPUB,
 subtitles, SVG input, TAR / GZIP / RAR archives."""
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ def report_pdf(tmp_path):
     return p
 
 
-def test_pdf_targets_follow_santra():
+def test_pdf_target_order():
     assert convert.targets_for("pdf", ".pdf") == ["DOCX", "PPTX", "XLSX", "JPG", "PNG", "EPUB", "TXT", "MD"]
 
 

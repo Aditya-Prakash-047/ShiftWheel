@@ -52,6 +52,18 @@ def test_palette_choice_and_fallbacks(monkeypatch):
     assert themes.accent_color("santra", "windows") == themes.SANTRA.accent
 
 
+def test_settings_from_before_the_santra_rename(tmp_path):
+    q = QSettings(str(tmp_path / "renamed.ini"), QSettings.IniFormat)
+    q.setValue("theme", "santra")
+    q.setValue("sound_pack", "santra")
+    q.setValue("custom/santra", '{"mode": "dark"}')
+    s = S.Settings(q)
+    assert s.get("theme") == "santra" and s.get("sound_pack") == "santra"
+    assert s.custom("santra") == {"mode": "dark"} and not q.contains("custom/santra")
+    saved = themes.theme_from_dict({"name": "Mine", "base": "santra", "sounds": {"pack": "santra"}})
+    assert saved.sounds == "santra" and saved.shape == themes.SANTRA.shape
+
+
 def test_settings_validate_migrate_and_reset(tmp_path):
     q = QSettings(str(tmp_path / "old.ini"), QSettings.IniFormat)
     q.setValue("wheel_style", "santra")                                  # what 1.0 stored

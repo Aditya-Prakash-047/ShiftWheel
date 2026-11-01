@@ -22,7 +22,7 @@ except Exception:  # pragma: no cover
 fitz = LazyModule("pymupdf", "fitz", on_load=lambda m: getattr(m, "no_recommend_layout", lambda: None)())
 
 IMAGE_TARGETS = ["PNG", "JPG", "WEBP", "HEIC", "TIFF", "AVIF", "BMP", "PDF", "ICO", "GIF"]
-PDF_TARGETS = ["DOCX", "PPTX", "XLSX", "JPG", "PNG", "EPUB", "TXT", "MD"]     # Santra's order
+PDF_TARGETS = ["DOCX", "PPTX", "XLSX", "JPG", "PNG", "EPUB", "TXT", "MD"]
 DOCX_TARGETS = ["PDF", "TXT", "MD", "HTML", "EPUB"]
 TEXT_TARGETS = ["PDF", "DOCX", "EPUB"]
 MARKDOWN_TARGETS = ["PDF", "DOCX", "HTML", "EPUB", "TXT"]

@@ -1,4 +1,4 @@
-"""Engines for the tools Santra has that ShiftWheel 1.0 didn't: video crop / split / redact,
+"""Engines for the tools ShiftWheel 1.0 didn't have: video crop / split / redact,
 audio channels / bleep / visualizer / silence trim, image collage and QR codes, PDF page
 organising, metadata editing. The windows live in tools2.py."""
 from __future__ import annotations
@@ -395,7 +395,7 @@ def _save_with_exif(im: Image.Image, out: Path, exif) -> None:
 
 
 def compress_percent(src, percent: int, to_webp: bool = False) -> Path:
-    """Make an image about `percent` % smaller (Santra's percentage compression)."""
+    """Make an image about `percent` % smaller."""
     from .imaging import compress_to, lossy_target, plan_target_size
     from .util import file_size
     size = file_size(src)

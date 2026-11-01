@@ -1,4 +1,4 @@
-"""Tool windows added to match Santra: Collage, Organize PDF pages, Crop / Split / Redact
+"""More tool windows: Collage, Organize PDF pages, Crop / Split / Redact
 video, audio Channels / Bleep / Visualizer, and metadata editing. Engines: extras.py."""
 from __future__ import annotations
 
@@ -565,7 +565,7 @@ class VisualizerWindow(ToolWindow):
         g.addLayout(cr, 2, 1)
         g.addWidget(QLabel("Background"), 3, 0)
         self.bg = QComboBox()
-        for name, hexv in (("Near black", "#101114"), ("White", "#ffffff"), ("Navy", "#0f172a"), ("Santra", "#ff5200")):
+        for name, hexv in (("Near black", "#101114"), ("White", "#ffffff"), ("Navy", "#0f172a"), ("Orange", "#ff5200")):
             self.bg.addItem(name, hexv)
         g.addWidget(self.bg, 3, 1)
         self.pick = QPushButton("Choose image…")

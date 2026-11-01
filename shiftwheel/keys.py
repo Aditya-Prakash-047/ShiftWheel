@@ -134,7 +134,7 @@ def mac_down(key: str, flags: int, keycode_down, mouse_buttons: int) -> bool:
 
 
 def defaults() -> dict[str, str]:
-    """Santra's layout: Shift converts, Command (Ctrl on PC) tools, Control (Alt) actions."""
+    """The default layout: Shift converts, Command (Ctrl on PC) tools, Control (Alt) actions."""
     if IS_MAC:
         return {"key_convert": "shift", "key_tools": "cmd", "key_print": "none", "key_actions": "ctrl"}
     return {"key_convert": "shift", "key_tools": "ctrl", "key_print": "none", "key_actions": "alt"}

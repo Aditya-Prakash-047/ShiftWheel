@@ -76,7 +76,7 @@ HINTS = {
     "Duplicate": "Make a copy", "Copy": "Paste it anywhere", "Move": "To another folder",
     "Terminal": "Open a terminal here", "Share": "Windows share", "Float": "Keep it handy",
 }
-# Santra's Actions wheel (AirDrop → Windows Share), plus ShiftWheel's extras
+# The Actions wheel: Share and the core file actions, plus ShiftWheel's extras
 FILE_ACTIONS = ["Share", "Float", "Copy", "Move", "Copy path", "Terminal", "Show", "SHA-256", "Duplicate"]
 FORMAT_HINTS = {"JPG": "Small, universal", "PNG": "Lossless · transparency", "WEBP": "Smallest for web",
                 "HEIC": "iPhone format", "TIFF": "Print · archival", "AVIF": "Next-gen, tiny",
@@ -85,7 +85,7 @@ FORMAT_HINTS = {"JPG": "Small, universal", "PNG": "Lossless · transparency", "W
                 "EPUB": "E-book", "XLSX": "Tables → Excel", "PPTX": "Pages → slides", "SRT": "SubRip subtitles",
                 "VTT": "Web subtitles", "SVG": "Vector"}
 
-# clockwise from 12 o'clock in Santra's order, then ShiftWheel's extras
+# clockwise from 12 o'clock, core actions first, then ShiftWheel's extras
 IMAGE_TOOLS = ["Compress", "Metadata", "Edit", "Annotate", "Add BG", "Crop", "Redact", "Resize", "Text", "QR code"]
 PDF_TOOLS = ["Compress", "Split", "Rotate", "Organize", "Protect", "Extract", "Metadata", "OCR"]
 VIDEO_TOOLS = ["Compress", "Trim", "Crop", "Split", "Snapshot", "Speed", "Mute", "Redact", "Rotate", "Metadata"]

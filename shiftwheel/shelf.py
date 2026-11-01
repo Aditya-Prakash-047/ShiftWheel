@@ -1,5 +1,5 @@
 """Float: a small always-on-top shelf that holds files so you can drag them into another app
-later (Santra's Float). Drop more files on it, drag any tile out, pin it to a screen edge."""
+later. Drop more files on it, drag any tile out, pin it to a screen edge."""
 from __future__ import annotations
 
 from pathlib import Path

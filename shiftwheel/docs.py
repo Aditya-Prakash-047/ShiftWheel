@@ -1,4 +1,4 @@
-"""Documents beyond the basics (Santra's list): EPUB in and out, Markdown export, PDF to
+"""Documents beyond the basics: EPUB in and out, Markdown export, PDF to
 Excel / PowerPoint / Markdown / EPUB, and subtitles (SRT ⇄ VTT, text)."""
 from __future__ import annotations
 
