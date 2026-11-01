@@ -2,7 +2,7 @@
 
 All notable changes to ShiftWheel. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
-## [1.3.1] - Unreleased
+## [1.3.1] - 2026-11-01
 
 ### Added
 - Installer and app details: publisher, copyright, support and update links, licence page.
