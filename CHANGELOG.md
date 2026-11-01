@@ -51,11 +51,14 @@ All notable changes to ShiftWheel. The format follows [Keep a Changelog](https:/
 
 ### Added
 - Built-in updater; Share through the Windows share sheet; any-key bindings with Record; compression levels with size estimates; batch "apply to all"; Save / Cancel in Settings; macOS builds in CI.
-- A new default design, theme files, sounds, customisation, and many new tools and formats.
 
 ### Changed
 - Lazy loading and a one-thread OpenBLAS cut idle memory substantially.
 
-## [1.0.0] - 2026-10-22
+## [1.0.0] - 2026-10-23
 
-- First release, built on [DragShift](https://github.com/llamaboi55/DragShift).
+### Added
+- First release for Windows, built on [DragShift](https://github.com/llamaboi55/DragShift).
+- Drag a file, tap a key and drop it on the wheel: Convert, Tools, Print and Actions.
+- Seven themes in light and dark, theme files, customisation and interface sounds.
+- Configurable keys, and a notification after each job with Open, Show in folder and Undo.
