@@ -236,7 +236,7 @@ def install_script(kind: str, downloaded: Path, pid: int, target: Path) -> tuple
         else:
             lines += [f'move /y "{target}" "{target}.old" >nul',
                       f'move /y "{downloaded}" "{target}" >nul || move /y "{target}.old" "{target}" >nul']
-        lines += [f'start "" "{target}"', f'del "{target}.old" 2>nul', "endlocal"]
+        lines += [f'if exist "{target}" start "" "{target}"', f'del "{target}.old" 2>nul', "endlocal"]
         script = folder / "finish-update.cmd"
         script.write_text("\r\n".join(lines) + "\r\n", encoding="utf-8", newline="")   # exactly CRLF
         return script, ["cmd.exe", "/c", str(script)]

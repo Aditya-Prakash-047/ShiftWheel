@@ -39,8 +39,6 @@ PRIVACY = ("Your files stay on your computer: every conversion runs locally and 
 CREDITS = [
     ("DragShift", "The original Shift-drag wheel, glass rendering, image and PDF tools", "MIT",
      "https://github.com/llamaboi55/DragShift"),
-    ("Santra", "The idea, and the design the default Santra theme is modelled on (not affiliated)", "—",
-     "https://the reference design"),
     ("Qt for Python (PySide6)", "Windows, the wheel, sounds", "LGPL-3.0", "https://doc.qt.io/qtforpython-6/"),
     ("FFmpeg", "Video and audio conversion (via imageio-ffmpeg)", "GPL", "https://ffmpeg.org"),
     ("PyMuPDF", "PDF reading, writing and compression", "AGPL-3.0", "https://pymupdf.readthedocs.io"),

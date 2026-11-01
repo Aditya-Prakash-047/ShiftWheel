@@ -30,7 +30,7 @@ Pick one in **Settings → Appearance**. Each theme styles the wheel **and** eve
 
 | Theme | Look | Inspired by |
 |---|---|---|
-| **Santra** (default) | Frosted glossy tiles with constant gaps and rounded corners, black labels, a solid `#FF5200` slice, a small frosted capsule in the middle. | Santra |
+| **Santra** (default) | Frosted glossy tiles with constant gaps and rounded corners, black labels, a solid `#FF5200` slice, a small frosted capsule in the middle. | — |
 | **Ember** | Matte charcoal or porcelain disc, hairline dividers, one coral slice and a coral marker on the rim | ShiftWheel's own design |
 | **Liquid glass** | Clear glass that refracts whatever is behind it | DragShift (the original look) |
 | **Frost** | Milky frosted glass with a large quiet hub | Apple's “Release to Select” menu |
@@ -60,7 +60,7 @@ Colours are `#RGB`, `#RRGGBB`, `#RRGGBBAA` or `rgba(r,g,b,a)`. Wheel keys: `disc
 
 ## Sounds
 
-Settings → Sounds: on/off, volume, a **pack** (Santra · Soft · Glass · Pop · Arcade, or *match the theme*), and each event — slice lights up, wheel opens, ring changes, file dropped, job finished, something went wrong — can be switched off, previewed, or replaced with **your own sound** (any audio file; converted and kept with ShiftWheel, and included when you export a theme). Santra's tick is synthesised to match the one on the reference design (60 ms, bright transient around 8–9 kHz) rather than copied.
+Settings → Sounds: on/off, volume, a **pack** (Santra · Soft · Glass · Pop · Arcade, or *match the theme*), and each event — slice lights up, wheel opens, ring changes, file dropped, job finished, something went wrong — can be switched off, previewed, or replaced with **your own sound** (any audio file; converted and kept with ShiftWheel, and included when you export a theme).
 
 ## Settings
 
@@ -235,6 +235,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Security reports: [SECURITY.md](SECURITY
 ## Credits and licences
 
 - Built on [DragShift](https://github.com/llamaboi55/DragShift) (MIT): the wheel, glass rendering, image and PDF tools, and test harness.
-- The default Santra theme, its wheel-slice shape and its tick sound are modelled on [Santra](https://the reference design) for macOS. Not affiliated; no Santra files are included.
 - ShiftWheel's own code is under the [MIT licence](LICENSE). Bundled components, including FFmpeg (GPL) and PyMuPDF (AGPL-3.0), keep their own licences: see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 

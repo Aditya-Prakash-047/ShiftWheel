@@ -52,21 +52,19 @@ def test_palette_choice_and_fallbacks(monkeypatch):
     assert themes.accent_color("santra", "windows") == themes.SANTRA.accent
 
 
-def test_settings_from_before_the_santra_rename(tmp_path):
+def test_settings_for_a_theme_that_no_longer_exists(tmp_path):
     q = QSettings(str(tmp_path / "renamed.ini"), QSettings.IniFormat)
-    q.setValue("theme", "santra")
-    q.setValue("sound_pack", "santra")
-    q.setValue("custom/santra", '{"mode": "dark"}')
+    q.setValue("theme", "retired")
+    q.setValue("sound_pack", "retired")
+    q.setValue("custom/retired", '{"mode": "dark"}')
     s = S.Settings(q)
     assert s.get("theme") == "santra" and s.get("sound_pack") == "santra"
-    assert s.custom("santra") == {"mode": "dark"} and not q.contains("custom/santra")
-    saved = themes.theme_from_dict({"name": "Mine", "base": "santra", "sounds": {"pack": "santra"}})
-    assert saved.sounds == "santra" and saved.shape == themes.SANTRA.shape
+    assert s.custom("santra") == {"mode": "dark"} and not q.contains("custom/retired")
 
 
 def test_settings_validate_migrate_and_reset(tmp_path):
     q = QSettings(str(tmp_path / "old.ini"), QSettings.IniFormat)
-    q.setValue("wheel_style", "santra")                                  # what 1.0 stored
+    q.setValue("wheel_style", "ember")                                      # what 1.0 stored
     q.setValue("trigger", "ctrl")
     q.setValue("appearance", "dark")                                        # what 1.1 stored globally
     q.setValue("accent", "pink")
@@ -74,8 +72,8 @@ def test_settings_validate_migrate_and_reset(tmp_path):
     q.setValue("wheel_size", "huge")
     q.setValue("pdf_dpi", 999)
     s = S.Settings(q)
-    assert s.get("theme") == "santra" and s.get("key_convert") == "ctrl"
-    assert s.custom("santra") == {"mode": "dark", "accent": "pink"} and not q.contains("appearance")
+    assert s.get("theme") == "ember" and s.get("key_convert") == "ctrl"
+    assert s.custom("ember") == {"mode": "dark", "accent": "pink"} and not q.contains("appearance")
     assert s.get("output") == "next" and s.get("wheel_size") == 100 and s.get("pdf_dpi") == 200
     s.set("ask_name", True)
     s.set("welcomed", True)

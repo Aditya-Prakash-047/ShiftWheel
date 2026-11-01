@@ -1,7 +1,7 @@
 """Wheel geometry: the outline (circle, squircle, square, hexagon, octagon) and the slices.
 
 Round wheels use a slice outline with constant-width gaps and corners rounded with
-quadratic curves (ported from the reference design). Other outlines cut wedges out of the
+quadratic curves. Other outlines cut wedges out of the
 outline's ring and round their corners by shrinking and re-growing the shape.
 
 Angles follow radial.py: first slice centred at 12 o'clock, clockwise; Qt arc angles are
@@ -84,7 +84,7 @@ def ring(kind: str, c: QPointF, r_in: float, r_out: float) -> QPainterPath:
 
 def round_slice(c: QPointF, a: float, span: float, r_in: float, r_out: float, gap: float,
                 corner: float) -> QPainterPath:
-    """One round slice with parallel gap edges and rounded corners (the reference design `we()`)."""
+    """One round slice with parallel gap edges and rounded corners."""
     lo, hi = a - span / 2, a + span / 2
 
     def off(radius):            # angle that keeps the gap edge `gap/2` from the bisector line

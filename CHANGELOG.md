@@ -18,6 +18,7 @@ All notable changes to ShiftWheel. The format follows [Keep a Changelog](https:/
 ### Fixed
 - A funding link inherited from another project was removed.
 - The macOS build's self-test read the wrong log location.
+- If an update can't find the app afterwards, Windows no longer shows an error box.
 
 ## [1.3.0] - 2026-10-31
 

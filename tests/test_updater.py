@@ -158,7 +158,7 @@ def test_installer_script(tmp_path):
     assert "/VERYSILENT" in text and "/SUPPRESSMSGBOXES" in text and 'PID eq 4242' in text
     raw = script.read_bytes()
     assert b"\r\r\n" not in raw and raw.count(b"\r\n") == raw.count(b"\n")      # clean CRLF
-    assert 'start "" "C:\\Apps\\ShiftWheel\\ShiftWheel.exe"' in text and cmd[0] == "cmd.exe"
+    assert 'if exist "C:\\Apps\\ShiftWheel\\ShiftWheel.exe" start "" "C:\\Apps\\ShiftWheel\\ShiftWheel.exe"' in text and cmd[0] == "cmd.exe"
 
 
 def test_mac_script_is_valid_bash(tmp_path):
