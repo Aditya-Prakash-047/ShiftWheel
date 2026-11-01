@@ -14,7 +14,7 @@ Start dragging any file in File Explorer or Finder, tap a key, and drop it on a 
 ## How to use
 
 1. Start dragging a file (or several, or a folder) in File Explorer or on the desktop.
-2. While dragging, tap a key — like Santra: **Shift** converts, **Ctrl** opens tools, **Alt** opens file actions. The wheel opens under the cursor; release the key and keep dragging.
+2. While dragging, tap a key: **Shift** converts, **Ctrl** opens tools, **Alt** opens file actions. The wheel opens under the cursor; release the key and keep dragging.
 3. Drop the file on a slice. The result is saved **next to the original**; the original is never changed.
 4. Tap another key to switch wheels, or the same key again to go round them: **Convert → Tools → Print → Actions**.
 
@@ -22,7 +22,7 @@ No dragging needed: select a file and press **Ctrl + Alt + W** — the wheel ope
 
 The order matters: **drag first, then the key**. Shift then drag still selects files as usual, and by default the wheel works only in file managers, so Chrome, games and other apps are left alone (Settings → Behaviour).
 
-Every action ends with a notification showing what changed, with **Open**, **Show in folder** and **Undo**, and a soft tick plays as slices light up (Santra's sound, recreated).
+Every action ends with a notification showing what changed, with **Open**, **Show in folder** and **Undo**, and a soft tick plays as slices light up.
 
 ## Themes
 
@@ -30,7 +30,7 @@ Pick one in **Settings → Appearance**. Each theme styles the wheel **and** eve
 
 | Theme | Look | Inspired by |
 |---|---|---|
-| **Santra** (default) | Frosted glossy tiles with constant gaps and rounded corners, black labels, a solid `#FF5200` slice, a small frosted capsule in the middle. Geometry, colours and label sizes measured from the reference design | Santra |
+| **Santra** (default) | Frosted glossy tiles with constant gaps and rounded corners, black labels, a solid `#FF5200` slice, a small frosted capsule in the middle. | Santra |
 | **Ember** | Matte charcoal or porcelain disc, hairline dividers, one coral slice and a coral marker on the rim | ShiftWheel's own design |
 | **Liquid glass** | Clear glass that refracts whatever is behind it | DragShift (the original look) |
 | **Frost** | Milky frosted glass with a large quiet hub | Apple's “Release to Select” menu |
@@ -109,7 +109,7 @@ Drop several files on a slice and the tool works on all of them: conversions, Co
 | **Archives** (ZIP, 7Z, TAR, GZ, **RAR** in) | ZIP, 7Z, **TAR**, **GZIP** | Extract | |
 | **Folders / anything else** | | Zip, 7Z | |
 
-Every wheel ends with the **Actions** wheel (Santra's, plus extras): **Share** (the Windows share sheet: Nearby Sharing, WhatsApp, Mail, Teams…, for every dropped file), **Float** (a floating shelf you drag files out of), **Copy** (files to the clipboard), **Move**, **Copy path**, **Terminal**, **Show** in folder, **SHA-256**, **Duplicate**.
+Every wheel ends with the **Actions** wheel: **Share** (the Windows share sheet: Nearby Sharing, WhatsApp, Mail, Teams…, for every dropped file), **Float** (a floating shelf you drag files out of), **Copy** (files to the clipboard), **Move**, **Copy path**, **Terminal**, **Show** in folder, **SHA-256**, **Duplicate**.
 
 ### The Print ring
 
@@ -235,6 +235,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Security reports: [SECURITY.md](SECURITY
 ## Credits and licences
 
 - Built on [DragShift](https://github.com/llamaboi55/DragShift) (MIT): the wheel, glass rendering, image and PDF tools, and test harness.
-- Design inspired by [Santra](https://the reference design) for macOS. Not affiliated; no code or audio from it.
+- The default Santra theme, its wheel-slice shape and its tick sound are modelled on [Santra](https://the reference design) for macOS. Not affiliated; no Santra files are included.
 - ShiftWheel's own code is under the [MIT licence](LICENSE). Bundled components, including FFmpeg (GPL) and PyMuPDF (AGPL-3.0), keep their own licences: see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 

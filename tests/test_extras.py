@@ -1,4 +1,4 @@
-"""The tools added to match Santra: video crop / split / redact, audio channels / bleep /
+"""The extra tools: video crop / split / redact, audio channels / bleep /
 visualizer / silence trim, collage, QR codes, PDF organising, metadata editing, % compression."""
 from __future__ import annotations
 

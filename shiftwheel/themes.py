@@ -43,7 +43,7 @@ def _c(*v):
 class Shape:
     outline: str = "circle"          # circle | squircle | square | hexagon | octagon
     inner: float = 0.38              # inner radius of the slices ÷ outer radius
-    gap: float = 0.0                 # px between slices (constant width, like Santra)
+    gap: float = 0.0                 # px between slices (constant width)
     corner: float = 0.0              # px rounding of each slice's corners
     rim: float = 7.0                 # px the wheel's backing reaches past the slices
     lift: bool = False               # the hovered slice lifts towards the cursor
@@ -52,7 +52,7 @@ class Shape:
     tool_px: int = 10                # tool labels (COMPRESS…)
     icon_px: int = 20
     icons: str = "fluent"            # fluent (Windows icon font) | glyph (plain symbols)
-    hub_label: str = "plain"         # plain | pill (a frosted capsule, like Santra)
+    hub_label: str = "plain"         # plain | pill (a frosted capsule)
     font: str = ""                   # "" = the UI font
 
 
@@ -126,7 +126,7 @@ class Theme:
     shape: Shape = field(default_factory=Shape)
     ui_light: Ui | None = None        # None: derived from the wheel palette
     ui_dark: Ui | None = None
-    sounds: str = "santra"         # sound pack key (see sounds.py)
+    sounds: str = "santra"            # sound pack key (see sounds.py)
     sound_files: dict = field(default_factory=dict)   # event → wav (themes from files)
     dark_only: bool = False
     builtin: bool = True
@@ -146,7 +146,7 @@ class Look:
 
 # ---------------------------------------------------------------- built-in library
 CORAL = hexa("#F4774F")
-ORANGE = hexa("#FF5200")              # the reference design: .is-highlighted .petal { fill: #ff5200 }
+ORANGE = hexa("#FF5200")
 
 EMBER = Theme(
     "ember", "Ember", "Matte, calm and readable. One coral slice says exactly where the file lands.",
@@ -174,8 +174,8 @@ EMBER = Theme(
 # Measured from the reference design (wheel geometry, gradient, colours, label sizes), scaled
 # from their 119.5 px outer radius to ours.
 SANTRA = Theme(
-    "santra", "Santra", "Frosted glass tiles, black labels, a bright orange slice. As close to "
-    "Santra as it gets.", "the Santra design",
+    "santra", "Santra", "Frosted glass tiles, black labels, a bright orange slice.",
+    "Modelled on the Santra design",
     light=Palette(
         dark=False, frost=True, base=rgba(192, 201, 205, 64), base_edge=rgba(255, 255, 255, 85),
         tile_gradient=True, slice_in=rgba(255, 255, 255, 204), slice_mid=rgba(243, 246, 247, 148),
@@ -291,6 +291,7 @@ NEON = Theme("neon", "Neon Night", "Synthwave HUD: glowing cyan lines, magenta h
 BUILTIN = (SANTRA, EMBER, GLASS, FROST, GRAPHITE, BLOSSOM, NEON)
 THEMES: dict[str, Theme] = {t.key: t for t in BUILTIN}
 DEFAULT_THEME = "santra"
+OLD_KEYS = {"santra": "santra"}      # theme and sound pack keys saved by older versions
 
 MODES = [("system", "Match Windows"), ("light", "Light"), ("dark", "Dark")]
 ACCENTS = [("theme", "Theme colour", None), ("windows", "Windows accent", None),
@@ -539,8 +540,9 @@ def theme_from_dict(d: dict, source: str = "", warn: list | None = None, check_f
     if not name:
         raise ThemeError("The theme has no name.")
     key = slug(str(d.get("id") or name))
-    base = THEMES.get(str(d.get("base") or "ember")) or EMBER
-    if d.get("base") and d.get("base") not in THEMES:
+    base_key = OLD_KEYS.get(str(d.get("base") or "ember"), str(d.get("base") or "ember"))
+    base = THEMES.get(base_key) or EMBER
+    if base_key not in THEMES:
         warn.append(f"base theme “{d.get('base')}” not found: using Ember")
     shape = _shape_from(d.get("shape") or {}, base.shape, warn)
     modes = {}
@@ -556,6 +558,7 @@ def theme_from_dict(d: dict, source: str = "", warn: list | None = None, check_f
     accent = _color(d.get("accent")) or QColor(modes["light"][0].hover_out)
     sounds = d.get("sounds") or {}
     pack = str(sounds.get("pack") or base.sounds)
+    pack = OLD_KEYS.get(pack, pack)
     files = {}
     for ev, rel in (sounds.get("files") or {}).items():
         if ev not in SOUND_EVENTS:

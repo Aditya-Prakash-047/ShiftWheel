@@ -26,7 +26,7 @@ from .util import resolve_shortcuts, ui_family
 class Item:
     label: str
     glyph: str = ""
-    icon: str = ""          # Segoe Fluent Icons character (line icons like Santra's)
+    icon: str = ""          # Segoe Fluent Icons character (line icons)
 
     def __post_init__(self):
         if self.glyph and not self.icon:
@@ -36,7 +36,7 @@ class Item:
     hint: str = ""
 
 
-# Segoe Fluent Icons / MDL2 code points for each tool (the same line-icon style as Santra)
+# Segoe Fluent Icons / MDL2 code points for each tool (line-icon style)
 FLUENT = {name: chr(cp) for name, cp in {
     "Compress": 0xE73F, "Resize": 0xE740, "Crop": 0xE7A8, "Edit": 0xE706, "Annotate": 0xE70F, "Redact": 0xED1A,
     "Add BG": 0xE91B, "Metadata": 0xE946, "Text": 0xE8D2, "OCR": 0xE8D2, "Split": 0xE8C6, "Trim": 0xE8C6,
@@ -506,7 +506,7 @@ class RadialMenu(QWidget):
 
     def keyPressEvent(self, e):
         """Keyboard: arrows choose, Enter/Space apply, 1–9 pick directly, Tab switches ring,
-        Esc cancels (like Santra)."""
+        Esc cancels."""
         k, n = e.key(), len(self.items)
         if k == Qt.Key_Escape:
             self.close_menu()
@@ -820,7 +820,7 @@ class RadialMenu(QWidget):
             shadow_col = None
         f = QFont(sh.font or ui_family(True))
         if not pal.glass and sh.hub_label == "pill" and pal.pill is not None:
-            # Santra's centre label: a small frosted capsule with one line of text
+            # Centre label: a small frosted capsule with one line of text
             f.setPixelSize(15 if not (self.hover >= 0 and self.items[self.hover].glyph) else 12)
             f.setWeight(QFont.DemiBold)
             f.setLetterSpacing(QFont.AbsoluteSpacing, 0.4)

@@ -1,4 +1,4 @@
-"""Interface sounds: a short tick when a slice lights up (like Santra), plus open, ring
+"""Interface sounds: a short tick when a slice lights up, plus open, ring
 switch, drop, done and error.
 
 Packs are synthesised here (no audio files to license or ship) and cached as WAV files.
@@ -45,7 +45,7 @@ def _env(t: np.ndarray, tau_ms: float, attack_ms: float = 0.4) -> np.ndarray:
 
 
 def _tick(ms=60, bright=8200, amp=0.14, thump=0.006, thump_hz=105, seed=7, delay_ms=5.0) -> np.ndarray:
-    """Santra's highlight sound, measured from the reference design: silent for ~5 ms, then a
+    """The highlight sound, modelled on Santra's (measured from the reference design): silent for ~5 ms, then a
     bright transient (energy near 8–9 kHz) that falls from 0.14 to 0.02 within 5 ms, over a
     faint ~100 Hz body (≈0.005), 60 ms in all."""
     rng = np.random.default_rng(seed)

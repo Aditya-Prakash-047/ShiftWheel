@@ -13,6 +13,7 @@ All notable changes to ShiftWheel. The format follows [Keep a Changelog](https:/
 - Library versions are pinned, so builds are repeatable.
 - Updates are only downloaded from ShiftWheel's own release page.
 - CI runs only for release tags or when started by hand.
+- The default theme and sound pack are now called Santra. Saved settings and themes carry over.
 
 ### Fixed
 - A funding link inherited from another project was removed.
@@ -49,7 +50,7 @@ All notable changes to ShiftWheel. The format follows [Keep a Changelog](https:/
 
 ### Added
 - Built-in updater; Share through the Windows share sheet; any-key bindings with Record; compression levels with size estimates; batch "apply to all"; Save / Cancel in Settings; macOS builds in CI.
-- Santra-style design, theme files, sounds, customisation, and many new tools and formats.
+- A new default design, theme files, sounds, customisation, and many new tools and formats.
 
 ### Changed
 - Lazy loading and a one-thread OpenBLAS cut idle memory substantially.

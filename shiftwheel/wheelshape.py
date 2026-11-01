@@ -1,7 +1,7 @@
 """Wheel geometry: the outline (circle, squircle, square, hexagon, octagon) and the slices.
 
-Round wheels use Santra's slice outline (constant-width gaps, corners rounded with
-quadratic curves; ported from the reference design). Other outlines cut wedges out of the
+Round wheels use a slice outline with constant-width gaps and corners rounded with
+quadratic curves (ported from the reference design). Other outlines cut wedges out of the
 outline's ring and round their corners by shrinking and re-growing the shape.
 
 Angles follow radial.py: first slice centred at 12 o'clock, clockwise; Qt arc angles are
@@ -82,8 +82,8 @@ def ring(kind: str, c: QPointF, r_in: float, r_out: float) -> QPainterPath:
     return outline(kind, c, r_out).subtracted(hole)
 
 
-def santra_slice(c: QPointF, a: float, span: float, r_in: float, r_out: float, gap: float,
-                    corner: float) -> QPainterPath:
+def round_slice(c: QPointF, a: float, span: float, r_in: float, r_out: float, gap: float,
+                corner: float) -> QPainterPath:
     """One round slice with parallel gap edges and rounded corners (the reference design `we()`)."""
     lo, hi = a - span / 2, a + span / 2
 
@@ -143,7 +143,7 @@ def slices(kind: str, n: int, c: QPointF, r_in: float, r_out: float, gap: float 
         out = [ring(kind, c, r_in, r_out)]
     elif kind == "circle":
         span = 2 * math.pi / n
-        out = [santra_slice(c, center_angle(n, i), span, r_in, r_out, gap, corner) for i in range(n)]
+        out = [round_slice(c, center_angle(n, i), span, r_in, r_out, gap, corner) for i in range(n)]
     else:
         span = 2 * math.pi / n
         rg = ring(kind, c, r_in, r_out)

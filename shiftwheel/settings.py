@@ -30,7 +30,7 @@ DEFAULTS = {
     # appearance (colours, mode and shape are per theme: see Settings.custom)
     "theme": themes.DEFAULT_THEME,
     "wheel_size": 100,
-    # keys (Santra: Shift converts, Command opens tools, Control file actions)
+    # keys (Shift converts, Command opens tools, Control file actions)
     **keys.defaults(),
     "cycle_rings": True,
     "open_hotkey": "Ctrl+Alt+W",            # W for wheel (Ctrl+Alt+Space is often taken, e.g. by Claude)
@@ -90,6 +90,15 @@ class Settings:
         for new, old in RENAMED.items():
             if not self.q.contains(new) and self.q.contains(old):
                 self.q.setValue(new, self.q.value(old))
+        # 1.3.1 renamed the default theme and sound pack
+        for old, new in themes.OLD_KEYS.items():
+            for key in ("theme", "sound_pack"):
+                if self.q.value(key) == old:
+                    self.q.setValue(key, new)
+            if self.q.contains(f"custom/{old}"):
+                if not self.q.contains(f"custom/{new}"):
+                    self.q.setValue(f"custom/{new}", self.q.value(f"custom/{old}"))
+                self.q.remove(f"custom/{old}")
         # 1.1 kept light/dark and accent globally: they become the current theme's own
         if self.q.contains("appearance") or self.q.contains("accent"):
             key = self.get("theme")
@@ -961,10 +970,10 @@ class SettingsWindow(GlassWindow):
         self.cycle.toggled.connect(lambda on: self._save("cycle_rings", on))
         lay.addWidget(self.cycle)
         if keys.IS_MAC:
-            lay.addWidget(hint("Defaults follow Santra: Shift converts, Command opens tools, Control opens file "
+            lay.addWidget(hint("Defaults: Shift converts, Command opens tools, Control opens file "
                                "actions. Fn (Globe), Option, F-keys and extra mouse buttons work too."))
         else:
-            lay.addWidget(hint("Defaults follow Santra: Shift converts, Ctrl opens tools, Alt opens file actions. "
+            lay.addWidget(hint("Defaults: Shift converts, Ctrl opens tools, Alt opens file actions. "
                                "Any key works, including left/right modifiers, F1–F24 and mouse side buttons; "
                                "use Record… for keys not in the list. Fn can't be used: on PC keyboards it is "
                                "handled inside the keyboard and Windows never sees it."))
@@ -1078,8 +1087,7 @@ class SettingsWindow(GlassWindow):
         self.pack.currentIndexChanged.connect(lambda _: (self._snd("sound_pack", self.pack.currentData()),
                                                          self._play("highlight")))
         g.addWidget(self.pack, 2, 1)
-        g.addWidget(hint("Santra's tick is recreated from the sound on the reference design (measured, not "
-                         "copied). “Match the theme” uses each theme's own pack, or the sounds inside an "
+        g.addWidget(hint("ShiftWheel generates every pack itself. “Match the theme” uses each theme's own pack, or the sounds inside an "
                          "imported theme."), 3, 1)
         lay.addLayout(g)
 
