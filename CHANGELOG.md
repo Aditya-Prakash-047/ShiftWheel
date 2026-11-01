@@ -10,7 +10,7 @@ All notable changes to ShiftWheel. The format follows [Keep a Changelog](https:/
 - macOS disk image includes an Applications shortcut.
 
 ### Changed
-- Library versions are pinned, so builds are repeatable.
+- Library versions are pinned, so builds are repeatable. Intel Macs use the last PyMuPDF and ONNX Runtime versions that support them.
 - Updates are only downloaded from ShiftWheel's own release page.
 - CI runs only for release tags or when started by hand.
 - The default theme and sound pack are now called Santra. Saved settings and themes carry over.
