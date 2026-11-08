@@ -70,6 +70,8 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
         run: |
-          gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1 || gh release create "${GITHUB_REF_NAME}" --title "ShiftWheel ${GITHUB_REF_NAME#v}" --notes-file RELEASE_NOTES.md || true
+          # the Windows build creates the release; creating it here too raced and made a duplicate
+          for i in $(seq 60); do gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1 && break; sleep 30; done
           gh release upload "${GITHUB_REF_NAME}" "dist/${{ matrix.asset }}" --clobber

@@ -20,7 +20,7 @@ git push origin v1.2.3
 
 CI tests, builds and self-tests, then publishes the release here with the installer, the portable app, both Mac disk images, `install-mac.sh` and the FFmpeg source.
 
-Until every install is on 1.4.0 or newer, also attach the same files to a release in the [ShiftWheel-releases](https://github.com/Aditya-Prakash-047/ShiftWheel-releases) bridge: 1.3.1 and older check for updates there.
+Copies on 1.3.1 or older look for updates under the old repository name: they are offered 1.4.0, and **Update now** opens its download page so they can install it once by hand.
 
 ## Build Windows locally
 

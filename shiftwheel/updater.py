@@ -31,7 +31,7 @@ from typing import Callable
 from . import __version__
 from .util import UserError
 
-# releases of the public repository (1.3.1 and older read the ShiftWheel-releases bridge)
+# releases of the public repository
 REPO = "Aditya-Prakash-047/ShiftWheel"
 FEED = f"https://api.github.com/repos/{REPO}/releases/latest"
 RELEASES_PAGE = f"https://github.com/{REPO}/releases/latest"
