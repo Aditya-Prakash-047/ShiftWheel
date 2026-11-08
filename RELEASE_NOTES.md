@@ -1,10 +1,8 @@
-- First release for both Windows and macOS (Apple silicon and Intel), with every 1.3 fix
-- **macOS**: a `.dmg` for each chip with an Applications shortcut, and the install command on the page below
-- **Windows**: the installer now shows the publisher, licence and support links
-- **Safer updates**: downloaded only from this release page and checked against their SHA-256
-- **About → Licence** lists the licences of everything ShiftWheel bundles
-- The default theme and sound pack are now called **Santra**; your settings carry over
-- From 1.3: the wheel opens only when you drag first, then tap the key, and only in file managers; updates really install; about 7 MB of active memory once idle on Windows; it asks before creating many files
+- ShiftWheel is now open source, and Liquid glass works with every wheel shape
+- **Open source**: code, releases and issues are in one public repository, under the GNU AGPL-3.0
+- **Liquid glass** can be a squircle, rounded square, hexagon or octagon, like every other theme
+- **Settings** switches every control to the new theme's colours at once
+- Number boxes look right in dark themes
 
 ### Downloads
 
@@ -17,6 +15,6 @@
 
 The apps aren't code-signed yet. **Windows:** choose **More info → Run anyway** the first time. **macOS:** open the app once, then go to **System Settings → Privacy & Security → Open Anyway**.
 
-On 1.3.0, ShiftWheel offers this update by itself. On 1.2.0 or older, please install this one by hand once.
+Installed copies offer this update by themselves.
 
-See the [changelog](CHANGELOG.md) for details.
+See the [changelog](https://github.com/Aditya-Prakash-047/ShiftWheel/blob/main/CHANGELOG.md) for details.

@@ -71,19 +71,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1 || gh release create "${GITHUB_REF_NAME}" --notes-file RELEASE_NOTES.md || true
+          gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1 || gh release create "${GITHUB_REF_NAME}" --title "ShiftWheel ${GITHUB_REF_NAME#v}" --notes-file RELEASE_NOTES.md || true
           gh release upload "${GITHUB_REF_NAME}" "dist/${{ matrix.asset }}" --clobber
-
-      - name: Publish to the public downloads repo (tags only)
-        if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
-          PUBLIC: Aditya-Prakash-047/ShiftWheel-releases
-        shell: bash
-        run: |
-          if [ -z "$GH_TOKEN" ]; then
-            echo "::warning::RELEASES_TOKEN isn't set, so $GITHUB_REF_NAME wasn't published to $PUBLIC"
-            exit 0
-          fi
-          gh release view "$GITHUB_REF_NAME" -R "$PUBLIC" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" -R "$PUBLIC" --title "ShiftWheel ${GITHUB_REF_NAME#v}" --notes-file RELEASE_NOTES.md || true
-          gh release upload "$GITHUB_REF_NAME" -R "$PUBLIC" "dist/${{ matrix.asset }}" install-mac.sh --clobber

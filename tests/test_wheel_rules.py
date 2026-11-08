@@ -201,7 +201,7 @@ def test_app_counts_files_before_a_split(tmp_path):
 # ---------------------------------------------------------------- about
 def test_about_has_licence_privacy_and_a_useful_report_link():
     w = aboutwin.AboutWindow(None, 3)
-    assert w.tab_buttons[3].text() == "Licence" and "MIT" in aboutwin.licence_text()
+    assert w.tab_buttons[3].text() == "Licence" and "GNU AFFERO GENERAL PUBLIC LICENSE" in aboutwin.licence_text()
     assert "Aditya Prakash" in aboutwin.licence_text()
     url = aboutwin.report_url()
     assert url.startswith("https://") and "ShiftWheel" in url and "/issues/new?" in url

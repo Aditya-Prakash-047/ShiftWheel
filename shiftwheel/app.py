@@ -39,7 +39,7 @@ tools = LazyModule("shiftwheel.tools")
 tools2 = LazyModule("shiftwheel.tools2")
 
 APP_NAME = "ShiftWheel"
-REPO_URL = "https://github.com/Aditya-Prakash-047/ShiftWheel-releases"
+REPO_URL = "https://github.com/Aditya-Prakash-047/ShiftWheel"
 CREDITS_URL = "https://github.com/llamaboi55/DragShift"
 VERSION = __version__
 IS_WIN = sys.platform == "win32"

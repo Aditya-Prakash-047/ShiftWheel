@@ -18,9 +18,9 @@ git tag v1.2.3
 git push origin v1.2.3
 ```
 
-CI tests, builds and self-tests, then attaches the files to the release here and on the public [ShiftWheel-releases](https://github.com/Aditya-Prakash-047/ShiftWheel-releases) page. Publishing there needs the `RELEASES_TOKEN` secret: a fine-grained token limited to ShiftWheel-releases, with **Contents: Read and write**. Without it, that step is skipped with a warning.
+CI tests, builds and self-tests, then publishes the release here with the installer, the portable app, both Mac disk images, `install-mac.sh` and the FFmpeg source.
 
-Attach `install-mac.sh` to the public release as well, because the install command downloads it from the latest release.
+Until every install is on 1.4.0 or newer, also attach the same files to a release in the [ShiftWheel-releases](https://github.com/Aditya-Prakash-047/ShiftWheel-releases) bridge: 1.3.1 and older check for updates there.
 
 ## Build Windows locally
 
@@ -35,15 +35,9 @@ dist\ShiftWheel\ShiftWheel.exe --selftest
 
 A Mac build needs a Mac (or the macOS workflow).
 
-## Licensing note
+## Licensing
 
-ShiftWheel's own code is MIT, but the bundled parts carry conditions when binaries are distributed:
-
-- **PyMuPDF** is AGPL-3.0 unless a commercial licence from Artifex is bought. The AGPL expects the source of the combined program to be available to recipients.
-- **FFmpeg** builds used here are GPL. Recipients must be able to get the corresponding FFmpeg source.
-- **Qt (PySide6)** and **py7zr** are LGPL, which a PyInstaller folder build generally satisfies. The single-file build makes replacing those libraries harder.
-
-Publishing the source, buying the PyMuPDF licence, or replacing PyMuPDF are the usual ways to meet this. Get legal advice for anything commercial.
+ShiftWheel is AGPL-3.0-or-later, which PyMuPDF's licence requires, and its source is public. FFmpeg is GPL: its source is attached to each release. Qt (PySide6) and py7zr are LGPL; the folder build keeps their libraries replaceable.
 
 ## Code signing (not set up)
 

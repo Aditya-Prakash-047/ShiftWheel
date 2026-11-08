@@ -5,7 +5,7 @@ ShiftWheel includes or is based on the following software. Each component stays 
 | Component | Used for | Licence | Source |
 |---|---|---|---|
 | DragShift | The original wheel, glass rendering, image and PDF tools | MIT | https://github.com/llamaboi55/DragShift |
-| FFmpeg 7.1 (via imageio-ffmpeg) | Video and audio | GPL (Windows build by gyan.dev) | https://ffmpeg.org/download.html |
+| FFmpeg 7.1 (via imageio-ffmpeg) | Video and audio | GPL (Windows build by gyan.dev) | https://ffmpeg.org/download.html; source attached to each release as `ffmpeg-7.1-source.tar.xz` |
 | imageio-ffmpeg | Bundles FFmpeg | BSD-2-Clause | https://github.com/imageio/imageio-ffmpeg |
 | PyMuPDF / MuPDF | PDF reading, writing and compression | AGPL-3.0 or Artifex commercial | https://github.com/pymupdf/PyMuPDF |
 | Qt for Python (PySide6) | Interface, sounds | LGPL-3.0 | https://code.qt.io/cgit/pyside/pyside-setup.git |

@@ -31,8 +31,8 @@ from typing import Callable
 from . import __version__
 from .util import UserError
 
-# the source repository is private; builds and release notes are published to a public one
-REPO = "Aditya-Prakash-047/ShiftWheel-releases"
+# releases of the public repository (1.3.1 and older read the ShiftWheel-releases bridge)
+REPO = "Aditya-Prakash-047/ShiftWheel"
 FEED = f"https://api.github.com/repos/{REPO}/releases/latest"
 RELEASES_PAGE = f"https://github.com/{REPO}/releases/latest"
 CHECK_EVERY = 24 * 3600          # automatic checks: at most once a day

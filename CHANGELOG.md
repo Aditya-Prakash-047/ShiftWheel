@@ -2,15 +2,19 @@
 
 All notable changes to ShiftWheel. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
-## [Unreleased]
+## [1.4.0] - 2026-11-07
 
 ### Added
+- ShiftWheel is open source under the GNU AGPL-3.0-or-later, with code, releases and issues in one public repository.
 - Liquid glass works with every wheel shape (squircle, rounded square, hexagon, octagon).
 - `docs/screenshots.py` regenerates the documentation images from the current code.
 
 ### Fixed
 - Switching themes with Settings open left input fields and dropdowns in the previous theme's colours.
 - Number boxes showed light arrow buttons in dark themes.
+
+### Changed
+- Updates come from the ShiftWheel repository. Each release includes the FFmpeg source.
 
 ## [1.3.1] - 2026-11-01
 

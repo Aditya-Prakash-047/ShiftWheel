@@ -1,0 +1,30 @@
+name: Bug report
+description: Something isn't working
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. Drag a PDF in File Explorer\n2. Tap Shift\n3. Drop on JPG"
+  - type: textarea
+    id: system
+    attributes:
+      label: Version and system
+      description: In ShiftWheel, open About and press Copy details, then paste here.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Log (optional)
+      description: "Windows: %LOCALAPPDATA%\\ShiftWheel\\log.txt. macOS: ~/Library/Logs/ShiftWheel/log.txt. Remove anything private first."
+      render: text

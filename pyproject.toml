@@ -8,8 +8,8 @@ authors = [{ name = "Aditya Prakash" }]
 dynamic = ["version", "dependencies"]
 
 [project.urls]
-Downloads = "https://github.com/Aditya-Prakash-047/ShiftWheel-releases/releases/latest"
-Issues = "https://github.com/Aditya-Prakash-047/ShiftWheel-releases/issues"
+Downloads = "https://github.com/Aditya-Prakash-047/ShiftWheel/releases/latest"
+Issues = "https://github.com/Aditya-Prakash-047/ShiftWheel/issues"
 
 [project.gui-scripts]
 shiftwheel = "shiftwheel.app:main"

@@ -31,6 +31,6 @@ Windows PowerShell: set `$env:QT_QPA_PLATFORM="offscreen"` first. macOS: `QT_QPA
 
 ## CI
 
-GitHub Actions minutes are limited, and macOS minutes cost ten times as much. Workflows run only for release tags or by hand. Test locally for everyday changes.
+Workflows run for release tags or by hand (Actions → Run workflow). Run the tests locally before opening a pull request.
 
 Releases: see [docs/RELEASING.md](docs/RELEASING.md).

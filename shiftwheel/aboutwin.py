@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (QFrame, QGridLayout, QHBoxLayout, QLabel, QPushBu
 from . import __version__, glass
 from .window import GlassWindow
 
-RELEASES = "https://github.com/Aditya-Prakash-047/ShiftWheel-releases"
+RELEASES = "https://github.com/Aditya-Prakash-047/ShiftWheel"
 
 CREATOR = {
     "name": "Aditya Prakash",
@@ -84,8 +84,9 @@ def report_url() -> str:
 
 def licence_text() -> str:
     base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[1]))
-    parts = [(base / n).read_text(encoding="utf-8") for n in ("LICENSE", "THIRD-PARTY-NOTICES.md") if (base / n).exists()]
-    return "\n\n".join(parts) or "MIT License. See the LICENSE file."
+    names = ("NOTICE", "LICENSE", "LICENSES/DragShift-MIT.txt", "THIRD-PARTY-NOTICES.md")
+    parts = [(base / n).read_text(encoding="utf-8") for n in names if (base / n).exists()]
+    return "\n\n".join(parts) or "GNU AGPL-3.0-or-later. See the LICENSE file."
 
 
 def _link_button(label: str, url: str, primary: bool = False) -> QPushButton:
@@ -132,7 +133,7 @@ class AboutWindow(GlassWindow):
             build(lay)
             self.stack.addWidget(page_w)
         foot = QHBoxLayout()
-        note = QLabel(f"© 2026 {CREATOR['name']}  ·  MIT licence")
+        note = QLabel(f"© 2026 {CREATOR['name']}  ·  GNU AGPL-3.0 licence")
         note.setObjectName("dim")
         foot.addWidget(note)
         foot.addStretch(1)

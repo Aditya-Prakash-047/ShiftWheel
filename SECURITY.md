@@ -2,11 +2,11 @@
 
 ## Supported versions
 
-Only the [latest release](https://github.com/Aditya-Prakash-047/ShiftWheel-releases/releases/latest) receives fixes.
+Only the [latest release](https://github.com/Aditya-Prakash-047/ShiftWheel/releases/latest) receives fixes.
 
 ## Reporting a problem
 
-Please don't describe a vulnerability in a public issue. Use GitHub's **private vulnerability reporting** on the [ShiftWheel-releases](https://github.com/Aditya-Prakash-047/ShiftWheel-releases/security) page: Security → Report a vulnerability. Include the version (About → Copy details) and steps to reproduce.
+Please don't describe a vulnerability in a public issue. Use GitHub's **private vulnerability reporting** on the [ShiftWheel](https://github.com/Aditya-Prakash-047/ShiftWheel/security) page: Security → Report a vulnerability. Include the version (About → Copy details) and steps to reproduce.
 
 ## How ShiftWheel handles your files and network
 

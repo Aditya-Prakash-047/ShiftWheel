@@ -1,7 +1,7 @@
 ; Inno Setup script — per-user install, no admin rights needed.
 #define AppVersion GetEnv("DS_VERSION")
 #if AppVersion == ""
-  #define AppVersion "1.3.1"
+  #define AppVersion "1.4.0"
 #endif
 
 [Setup]
@@ -10,9 +10,9 @@ AppName=ShiftWheel
 AppVersion={#AppVersion}
 AppVerName=ShiftWheel {#AppVersion}
 AppPublisher=Aditya Prakash
-AppPublisherURL=https://github.com/Aditya-Prakash-047/ShiftWheel-releases
-AppSupportURL=https://github.com/Aditya-Prakash-047/ShiftWheel-releases/issues
-AppUpdatesURL=https://github.com/Aditya-Prakash-047/ShiftWheel-releases/releases/latest
+AppPublisherURL=https://github.com/Aditya-Prakash-047/ShiftWheel
+AppSupportURL=https://github.com/Aditya-Prakash-047/ShiftWheel/issues
+AppUpdatesURL=https://github.com/Aditya-Prakash-047/ShiftWheel/releases/latest
 AppCopyright=Copyright (c) 2026 Aditya Prakash
 VersionInfoVersion={#AppVersion}
 VersionInfoCompany=Aditya Prakash

@@ -1,13 +1,13 @@
 # ShiftWheel
 
-[![Latest release](https://img.shields.io/badge/download-latest-FF5200)](https://github.com/Aditya-Prakash-047/ShiftWheel-releases/releases/latest)
+[![Latest release](https://img.shields.io/badge/download-latest-FF5200)](https://github.com/Aditya-Prakash-047/ShiftWheel/releases/latest)
 ![Windows 10/11](https://img.shields.io/badge/Windows-10%2F11-0078D4)
 ![macOS 11+](https://img.shields.io/badge/macOS-11%2B-555555)
-![Licence: MIT](https://img.shields.io/badge/licence-MIT-2EA44F)
+![Licence: AGPL-3.0](https://img.shields.io/badge/licence-AGPL--3.0-2EA44F)
 
 Start dragging any file in File Explorer or Finder, tap a key, and drop it on a slice of the wheel. Convert it, edit it, print it or act on it, right where you are. Everything happens on your computer; nothing is uploaded.
 
-**[Download](https://github.com/Aditya-Prakash-047/ShiftWheel-releases/releases/latest)** · [Install](#install) · [Changelog](CHANGELOG.md) · [Report a problem](https://github.com/Aditya-Prakash-047/ShiftWheel-releases/issues)
+**[Download](https://github.com/Aditya-Prakash-047/ShiftWheel/releases/latest)** · [Install](#install) · [Changelog](CHANGELOG.md) · [Report a problem](https://github.com/Aditya-Prakash-047/ShiftWheel/issues)
 
 ![Seven wheel themes, each in light and dark](docs/themes.png)
 
@@ -132,7 +132,7 @@ Drag the two handles over the filmstrip (or the waveform, for audio); the previe
 
 ### Windows 10/11
 
-From the [latest release](https://github.com/Aditya-Prakash-047/ShiftWheel-releases/releases/latest) (or **Actions → Build Windows app → ShiftWheel-windows**):
+From the [latest release](https://github.com/Aditya-Prakash-047/ShiftWheel/releases/latest) (or **Actions → Build Windows app → ShiftWheel-windows**):
 
 - **ShiftWheel-Setup.exe** (recommended) — installs for your user only (no admin), adds the Start menu entry, start-with-Windows, the right-click **ShiftWheel…** entry for files and folders, and **Send to**.
 - **ShiftWheel.exe** — portable. Turn on **Settings → Show “ShiftWheel…” when you right-click a file** to get the right-click entry without installing (per-user, no admin).
@@ -145,12 +145,12 @@ ShiftWheel updates itself like other desktop apps: once a day (or **Check for up
 
 ### macOS 11+
 
-Download **ShiftWheel-mac-apple-silicon.dmg** (M1 and later) or **ShiftWheel-mac-intel.dmg** from the [release page](https://github.com/Aditya-Prakash-047/ShiftWheel-releases/releases/latest), open it, and drag ShiftWheel onto Applications. It lives in the menu bar.
+Download **ShiftWheel-mac-apple-silicon.dmg** (M1 and later) or **ShiftWheel-mac-intel.dmg** from the [release page](https://github.com/Aditya-Prakash-047/ShiftWheel/releases/latest), open it, and drag ShiftWheel onto Applications. It lives in the menu bar.
 
 The app isn't notarized yet, so macOS blocks the first launch: open it once, then go to **System Settings → Privacy & Security → Open Anyway**. Or run this in Terminal, which installs the right build and skips the warning:
 
 ```bash
-curl -fsSL https://github.com/Aditya-Prakash-047/ShiftWheel-releases/releases/latest/download/install-mac.sh | bash
+curl -fsSL https://github.com/Aditya-Prakash-047/ShiftWheel/releases/latest/download/install-mac.sh | bash
 ```
 
 Allow **Screen Recording** when asked if you want the Liquid glass theme to show what's behind it. The other themes don't need it.
@@ -230,10 +230,10 @@ Files are processed on your computer, nothing is uploaded, and there is no telem
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Security reports: [SECURITY.md](SECURITY.md).
+Issues and pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). Security reports: [SECURITY.md](SECURITY.md).
 
 ## Credits and licences
 
 - Built on [DragShift](https://github.com/llamaboi55/DragShift) (MIT): the wheel, glass rendering, image and PDF tools, and test harness.
-- ShiftWheel's own code is under the [MIT licence](LICENSE). Bundled components, including FFmpeg (GPL) and PyMuPDF (AGPL-3.0), keep their own licences: see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+- ShiftWheel is free software under the [GNU AGPL-3.0-or-later](LICENSE). Parts from DragShift keep their [MIT notice](LICENSES/DragShift-MIT.txt). Bundled components, including FFmpeg (GPL) and PyMuPDF (AGPL-3.0), keep their own licences: see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
