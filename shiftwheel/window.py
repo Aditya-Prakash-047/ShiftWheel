@@ -108,6 +108,15 @@ class GlassWindow(QWidget):
                 self._acrylic = glass.enable_acrylic(int(self.winId()), glass.acrylic_tint())
             self.update()
 
+    def restyle(self):
+        """The look changed while open: controls, corners and dropdowns follow it."""
+        self.setStyleSheet(glass.qss())
+        self.radius = glass.window_radius()
+        self.liquid.radius = self.radius
+        glass.apply_shape(self, glass.rounded_rect_path(QRectF(self.rect()), self.radius))
+        glass.round_popups(self)
+        self.update()
+
     def keyPressEvent(self, e):
         if e.key() == Qt.Key_Escape:
             self.close()

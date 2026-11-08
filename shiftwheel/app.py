@@ -280,6 +280,9 @@ class ShiftWheelApp(QObject):
             glass.set_mode(look.dark, accent)
             glass.set_ui(look.ui, look.dark)
             self.tray_menu.setStyleSheet(glass.QSS)
+            for w in list(self.windows):           # open windows follow, so no control keeps old colours
+                if hasattr(w, "restyle"):
+                    w.restyle()
         s.configure_sounds(self.sounds)
 
     def _apply_keys(self):

@@ -377,6 +377,8 @@ def _ui_asset(kind: str, color: QColor) -> str:
         p.setPen(QPen(color, 4.2 if kind == "check" else 3.4, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
         if kind == "check":
             p.drawPolyline([QPointF(7, 16.5), QPointF(13.5, 23), QPointF(25, 9.5)])
+        elif kind == "chevron-up":
+            p.drawPolyline([QPointF(9, 19.5), QPointF(16, 12.5), QPointF(23, 19.5)])
         else:
             p.drawPolyline([QPointF(9, 12.5), QPointF(16, 19.5), QPointF(23, 12.5)])
         p.end()
@@ -404,8 +406,12 @@ def qss() -> str:
             "QCheckBox::indicator:checked {{ image: url({check}); }}\n"
             "QComboBox::drop-down {{ border: none; width: 26px; background: transparent; }}\n"
             "QComboBox::down-arrow {{ image: url({chev}); width: 12px; height: 12px; }}\n"
-            "QSpinBox::up-button, QSpinBox::down-button {{ border: none; background: transparent; width: 18px; }}\n"
-        ).format(check=_ui_asset("check", QColor(ui.on_accent)), chev=_ui_asset("chevron", QColor(ui.text_dim)))
+            "QSpinBox::up-button, QSpinBox::down-button, QDoubleSpinBox::up-button, QDoubleSpinBox::down-button "
+            "{{ border: none; background: transparent; width: 16px; }}\n"
+            "QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {{ image: url({up}); width: 9px; height: 9px; }}\n"
+            "QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {{ image: url({chev}); width: 9px; height: 9px; }}\n"
+        ).format(check=_ui_asset("check", QColor(ui.on_accent)), chev=_ui_asset("chevron", QColor(ui.text_dim)),
+                 up=_ui_asset("chevron-up", QColor(ui.text_dim)))
     s = _QSS.replace("@FONT@", ui_family(False))
     a, b, c = _accent_stops()
     s = s.replace(ACCENT_A, a).replace(ACCENT_B, b).replace(ACCENT_C, c)

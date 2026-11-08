@@ -2,6 +2,16 @@
 
 All notable changes to ShiftWheel. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [Unreleased]
+
+### Added
+- Liquid glass works with every wheel shape (squircle, rounded square, hexagon, octagon).
+- `docs/screenshots.py` regenerates the documentation images from the current code.
+
+### Fixed
+- Switching themes with Settings open left input fields and dropdowns in the previous theme's colours.
+- Number boxes showed light arrow buttons in dark themes.
+
 ## [1.3.1] - 2026-11-01
 
 ### Added

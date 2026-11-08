@@ -173,7 +173,7 @@ EMBER = Theme(
 
 SANTRA = Theme(
     "santra", "Santra", "Frosted glass tiles, black labels, a bright orange slice.",
-    "ShiftWheel's default theme",
+    "",
     light=Palette(
         dark=False, frost=True, base=rgba(192, 201, 205, 64), base_edge=rgba(255, 255, 255, 85),
         tile_gradient=True, slice_in=rgba(255, 255, 255, 204), slice_mid=rgba(243, 246, 247, 148),

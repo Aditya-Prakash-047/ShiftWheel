@@ -294,8 +294,8 @@ class RadialMenu(QWidget):
         super().hideEvent(e)
 
     def _render(self, n: int):
-        if n <= 0 or n in self.liquid or self._raw_backdrop is None or not self.pal.glass:
-            return                        # only the liquid-glass theme uses the refraction
+        if n <= 0 or n in self.liquid or self._raw_backdrop is None or not self._round_glass():
+            return                        # only the round liquid-glass wheel uses the refraction
         self.liquid[n] = QImage()  # placeholder: in flight
         job = _RenderJob(self._serial, n, self._raw_backdrop)
         from .util import keep, release
@@ -414,7 +414,7 @@ class RadialMenu(QWidget):
         r_in, r_out, r_hub = self.geom()
         if d <= r_hub + 4:
             return -2
-        outline = "circle" if self.pal.glass else self.look.shape.outline
+        outline = self.look.shape.outline
         if not self.items:
             return -1
         if outline == "circle":
@@ -561,7 +561,7 @@ class RadialMenu(QWidget):
         n = len(items)
         img = None
         if pal.glass:
-            img = self.liquid.get(n) if n else (self.liquid.get(4) or self.liquid.get(7))
+            img = (self.liquid.get(n) if n else (self.liquid.get(4) or self.liquid.get(7))) if self._round_glass() else None
             if img is not None and not img.isNull():
                 p.drawImage(0, 0, img)
             else:
@@ -588,6 +588,17 @@ class RadialMenu(QWidget):
 
     def _lifts(self) -> bool:
         return self.pal.glass or self.look.shape.lift
+
+    def _round_glass(self) -> bool:
+        return self.pal.glass and self.look.shape.outline == "circle"
+
+    def _glass_slice(self, n: int, i: int, grow: float = 0.0) -> QPainterPath:
+        """A Liquid glass slice: round sectors, or the chosen outline's slices."""
+        c = QPointF(SIZE / 2, SIZE / 2)
+        if self._round_glass():
+            a0, a1 = angles(n, i)
+            return sector_path(c, R_IN - grow, R_OUT + grow, a0, a1)
+        return wheelshape.slices(self.look.shape.outline, n, c, R_IN, R_OUT, 4.0, 10.0)[i]
 
     def _slices(self, n: int) -> list[QPainterPath]:
         sh = self.look.shape
@@ -635,8 +646,7 @@ class RadialMenu(QWidget):
         glass.paint_glass(p, hub, self.backdrop, QPointF(0, 0), tint=QColor(22, 18, 34, 80),
                           rainbow_alpha=150, highlight=1.3)
         for i in range(n):
-            a0, a1 = angles(n, i)
-            glass.paint_glass(p, sector_path(c, R_IN, R_OUT, a0, a1), self.backdrop, QPointF(0, 0),
+            glass.paint_glass(p, self._glass_slice(n, i), self.backdrop, QPointF(0, 0),
                               tint=QColor(22, 18, 34, 62), rainbow_alpha=140)
 
     def _paint_disc(self, p: QPainter, c: QPointF, n: int):
@@ -743,8 +753,7 @@ class RadialMenu(QWidget):
         push = 6 * h if lift else 0.0
         off = QPointF(push * math.cos(mid), -push * math.sin(mid))
         if pal.glass:
-            a0, a1 = angles(n, i)
-            path = sector_path(c, R_IN - 1, R_OUT + 1, a0, a1)
+            path = self._glass_slice(n, i, grow=1.0)
         else:
             path = self._slices(n)[i]
         p.save()
@@ -779,7 +788,7 @@ class RadialMenu(QWidget):
         if pal.neon:
             self._stroke(p, lambda: p.drawPath(path), QColor(pal.hover_in), 1.4, True)
         p.restore()
-        if pal.arc is not None and (pal.glass or self.look.shape.outline == "circle"):
+        if pal.arc is not None and self.look.shape.outline == "circle":
             # a short accent arc on the rim, the "you are here" marker
             col = QColor(pal.arc)
             col.setAlphaF(col.alphaF() * h)

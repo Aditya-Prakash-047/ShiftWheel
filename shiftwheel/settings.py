@@ -354,15 +354,8 @@ class ThemeCard(QPushButton):
         self.setObjectName("themecard")
         self.setCheckable(True)
         self.setFixedSize(132, 146)
-        self.setToolTip(f"{t.blurb}\nBy / inspired by: {t.credit}")
-        ui = _tok()
-        if ui is not None:
-            css = CARD_QSS.format(bg=ui.surface.name(), border=ui.border.name(), hover=ui.hover.name(),
-                                  accent=ui.accent.name())
-        else:
-            css = CARD_QSS.format(bg="rgba(255,255,255,0.06)", border="rgba(255,255,255,0.14)",
-                                  hover="rgba(255,255,255,0.14)", accent=t.accent.name())
-        self.setStyleSheet(css)
+        self.setToolTip(t.blurb + (f"\nBy / inspired by: {t.credit}" if t.credit else ""))
+        self.restyle()
         lay = QVBoxLayout(self)
         lay.setContentsMargins(6, 6, 6, 6)
         lay.setSpacing(2)
@@ -374,6 +367,17 @@ class ThemeCard(QPushButton):
         for w in (self.pic, self.name):
             w.setAttribute(Qt.WA_TransparentForMouseEvents)
             lay.addWidget(w)
+
+    def restyle(self):
+        """Card colours from the current look (called again when the look changes)."""
+        ui = _tok()
+        if ui is not None:
+            css = CARD_QSS.format(bg=ui.surface.name(), border=ui.border.name(), hover=ui.hover.name(),
+                                  accent=ui.accent.name())
+        else:
+            css = CARD_QSS.format(bg="rgba(255,255,255,0.06)", border="rgba(255,255,255,0.14)",
+                                  hover="rgba(255,255,255,0.14)", accent=themes.THEMES[self.key].accent.name())
+        self.setStyleSheet(css)
 
     def draw(self, custom: dict | None):
         self.pic.setPixmap(preview(self.key, custom, 100))
@@ -534,6 +538,11 @@ class SettingsWindow(GlassWindow):
             scroll.setWidget(page)
             self.stack.addWidget(scroll)
         glass.round_popups(self)
+
+    def restyle(self):
+        super().restyle()
+        for card in getattr(self, "cards", []):
+            card.restyle()
 
     def show_page(self, i: int):
         self.stack.setCurrentIndex(i)
@@ -779,7 +788,6 @@ class SettingsWindow(GlassWindow):
             b.set_color(themes._color(colors.get(role)), fallback[role])
         glass_theme = look.pal.glass
         self.outline.setCurrentIndex([k for k, _ in OUTLINE_NAMES].index(look.shape.outline))
-        self.outline.setEnabled(not glass_theme)
         for k, (sl, val, scale) in self.sliders.items():
             v = getattr(look.shape, k)
             sl.setValue(int(round(v * scale)))
@@ -863,8 +871,8 @@ class SettingsWindow(GlassWindow):
             card.draw(c if "mode" in c else dict(c, mode=mode))
         self.big.setPixmap(preview(theme, self.s.custom(theme), 250, hover=2))
         t = themes.THEMES[theme]
-        self.about_theme.setText(f"<b>{t.name}</b><br>{t.blurb}<br><i>{'Inspired by' if t.builtin else 'By'}: "
-                                 f"{t.credit}</i>")
+        credit = f"<br><i>{'Inspired by' if t.builtin else 'By'}: {t.credit}</i>" if t.credit else ""
+        self.about_theme.setText(f"<b>{t.name}</b><br>{t.blurb}{credit}")
 
     # ---- theme files
     def _show_msg(self, text: str, warn: bool = True):
