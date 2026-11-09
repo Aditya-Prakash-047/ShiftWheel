@@ -2,7 +2,7 @@
 
 All notable changes to ShiftWheel. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
-## [Unreleased]
+## [1.5.0] - 2026-11-09
 
 ### Added
 - Opacity for every theme (Settings → Appearance → Customise). Liquid glass starts frosted like macOS: colours behind it show through, text behind it can't be read.
