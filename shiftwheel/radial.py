@@ -81,9 +81,9 @@ class _RenderSig(QObject):
 
 
 class _RenderJob(QRunnable):
-    def __init__(self, serial: int, n: int, backdrop):
+    def __init__(self, serial: int, n: int, backdrop, opacity: float = 0.65):
         super().__init__()
-        self.serial, self.n, self.backdrop = serial, n, backdrop
+        self.serial, self.n, self.backdrop, self.opacity = serial, n, backdrop, opacity
         self.sig = _RenderSig()
 
     def run(self):
@@ -95,7 +95,8 @@ class _RenderJob(QRunnable):
                 a0, a1 = angles(self.n, i)
                 fields.append(liquid.sdf_ring_sector(SIZE, SIZE, c, c, R_IN, R_OUT, a0, a1, CORNER))
             sdf = liquid.union(*fields)
-            img, light = liquid.render(self.backdrop, sdf, liquid.GlassStyle())
+            blur, tint = themes.frost(self.opacity)
+            img, light = liquid.render(self.backdrop, sdf, liquid.GlassStyle(blur=blur, saturation=1.7, tint=tint))
             sh = liquid.shadow(sdf, spread=26, opacity=0.42 if light else 0.30, offset=(0, 8))
             sh.alpha_composite(img)
             try:
@@ -269,7 +270,10 @@ class RadialMenu(QWidget):
     def set_look(self, look: Look | Palette, scale: float = 1.0):
         """Theme and wheel size; takes effect from the next popup (or now, if shown)."""
         if isinstance(look, Palette):       # a bare palette: keep the current shape
-            look = themes.Look(self.look.theme, look, self.look.shape, self.look.ui, look.dark, self.look.accent)
+            look = themes.Look(self.look.theme, look, self.look.shape, self.look.ui, look.dark, self.look.accent,
+                               self.look.opacity)
+        if getattr(self, "look", None) is not None and self.look.opacity != look.opacity:
+            self.liquid = {}                  # rendered at the old opacity
         self.look = look
         self.pal = look.pal
         self.k = min(1.6, max(0.6, float(scale)))
@@ -297,7 +301,7 @@ class RadialMenu(QWidget):
         if n <= 0 or n in self.liquid or self._raw_backdrop is None or not self._round_glass():
             return                        # only the round liquid-glass wheel uses the refraction
         self.liquid[n] = QImage()  # placeholder: in flight
-        job = _RenderJob(self._serial, n, self._raw_backdrop)
+        job = _RenderJob(self._serial, n, self._raw_backdrop, self.look.opacity)
         from .util import keep, release
         job.sig.done.connect(lambda *a, j=job: (release(j), self._rendered(*a)))
         QThreadPool.globalInstance().start(keep(job))
@@ -568,7 +572,10 @@ class RadialMenu(QWidget):
                 img = None
                 self._paint_fallback(p, c, n)
         else:
+            p.save()
+            p.setOpacity(self.look.opacity)
             self._paint_disc(p, c, n)
+            p.restore()
 
         fg, fg_dim, shadow_col = self._text_colors()
         rot = (1 - self._swap) * -22
@@ -643,11 +650,12 @@ class RadialMenu(QWidget):
     def _paint_fallback_layer(self, p: QPainter, c: QPointF, n: int):
         hub = QPainterPath()
         hub.addEllipse(c, R_HUB, R_HUB)
-        glass.paint_glass(p, hub, self.backdrop, QPointF(0, 0), tint=QColor(22, 18, 34, 80),
+        _, tint = themes.frost(self.look.opacity)
+        glass.paint_glass(p, hub, self.backdrop, QPointF(0, 0), tint=QColor(22, 18, 34, int(80 + 200 * (tint - 0.385))),
                           rainbow_alpha=150, highlight=1.3)
         for i in range(n):
             glass.paint_glass(p, self._glass_slice(n, i), self.backdrop, QPointF(0, 0),
-                              tint=QColor(22, 18, 34, 62), rainbow_alpha=140)
+                              tint=QColor(22, 18, 34, int(62 + 200 * (tint - 0.385))), rainbow_alpha=140)
 
     def _paint_disc(self, p: QPainter, c: QPointF, n: int):
         """Every non-glass theme: shadow and halo, the backing (frosted or solid), the slices,

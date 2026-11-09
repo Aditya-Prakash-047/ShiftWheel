@@ -317,6 +317,9 @@ class AboutWindow(GlassWindow):
 
     # ------------------------------------------------------------ Credits
     def _credits(self, lay):
+        made = QLabel(f"<b>Created by {CREATOR['name']}</b>: design, development, testing and releases.")
+        made.setWordWrap(True)
+        lay.addWidget(made)
         intro = QLabel("ShiftWheel stands on the work of these projects. Thank you.")
         intro.setObjectName("dim")
         intro.setWordWrap(True)
@@ -332,6 +335,7 @@ class AboutWindow(GlassWindow):
             f"<td style='padding:6px 0; opacity:0.7'>{lic}</td></tr>"
             for name, what, lic, url in CREDITS)
         view.setHtml(f"<table cellspacing='0'>{rows}</table>"
-                     "<p style='margin-top:14px'>ShiftWheel's own code is MIT-licensed. The bundled FFmpeg, "
-                     "PyMuPDF and Qt keep their own licences (GPL, AGPL, LGPL).</p>")
+                     f"<p style='margin-top:14px'>ShiftWheel is © 2026 {CREATOR['name']}, free software under "
+                     "the GNU AGPL-3.0. The bundled FFmpeg, PyMuPDF and Qt keep their own licences "
+                     "(GPL, AGPL, LGPL).</p>")
         lay.addWidget(view, 1)

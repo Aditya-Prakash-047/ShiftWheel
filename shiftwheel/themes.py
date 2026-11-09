@@ -131,6 +131,7 @@ class Theme:
     dark_only: bool = False
     builtin: bool = True
     source: str = ""                  # folder of an imported theme
+    opacity: float = 1.0              # 0.2–1: how much the wheel covers what is behind it
 
 
 @dataclass(frozen=True)
@@ -142,6 +143,7 @@ class Look:
     ui: Ui
     dark: bool
     accent: QColor
+    opacity: float = 1.0
 
 
 # ---------------------------------------------------------------- built-in library
@@ -205,7 +207,8 @@ _GLASS = Palette(dark=True, glass=True, hover_alpha=0.78, shadow=None)
 GLASS = Theme(
     "glass", "Liquid glass", "Clear glass that refracts whatever is behind it. Adapts to any wallpaper.",
     "The original DragShift look", light=_GLASS, dark=_GLASS, accent=hexa("#ff7a2f"),
-    shape=Shape(icons="glyph"), ui_light=Ui(glass=True), ui_dark=Ui(glass=True), sounds="glass")
+    shape=Shape(icons="glyph"), ui_light=Ui(glass=True), ui_dark=Ui(glass=True), sounds="glass",
+    opacity=0.65)                     # frosted like macOS: colours show through, text behind doesn't
 
 FROST = Theme(
     "frost", "Frost", "Milky frosted glass, big quiet hub. Feels at home next to macOS-style apps.",
@@ -415,7 +418,22 @@ def resolve(theme_key: str, custom: dict | None = None) -> Look:
     sh = custom.get("shape") or {}
     if sh:
         shape = _shape_from(sh, shape, [])
-    return Look(t, pal, shape, ui, dark, QColor(acc))
+    return Look(t, pal, shape, ui, dark, QColor(acc), opacity_from(custom.get("opacity"), t.opacity))
+
+
+def opacity_from(value, default: float = 1.0) -> float:
+    """A customised opacity (percent, 20–100) as 0.2–1; anything else gives `default`."""
+    try:
+        return min(1.0, max(0.2, float(value) / 100))
+    except (TypeError, ValueError):
+        return default
+
+
+def frost(opacity: float) -> tuple[float, float]:
+    """Glass at this opacity: (blur radius in px, tint strength 0–1). Like macOS materials, the
+    default (0.65) blurs enough that text behind can't be read while its colours still show."""
+    o = min(1.0, max(0.2, opacity))
+    return 1.0 + 28.0 * o * o, 0.06 + 0.5 * o
 
 
 def palette(theme_key: str, mode: str = "system", accent: str = "theme") -> Palette:
@@ -570,7 +588,8 @@ def theme_from_dict(d: dict, source: str = "", warn: list | None = None, check_f
                  str(d.get("author") or "Imported theme")[:80],
                  light=modes["light"][0], dark=modes["dark"][0], accent=accent, shape=shape,
                  ui_light=modes["light"][1], ui_dark=modes["dark"][1], sounds=pack, sound_files=files,
-                 dark_only=bool(d.get("darkOnly", False)), builtin=False, source=source)
+                 dark_only=bool(d.get("darkOnly", False)), builtin=False, source=source,
+                 opacity=opacity_from(float(d["opacity"]) * 100, base.opacity) if isinstance(d.get("opacity"), (int, float)) else base.opacity)
 
 
 def theme_to_dict(t: Theme, look_custom: dict | None = None) -> dict:
@@ -595,6 +614,7 @@ def theme_to_dict(t: Theme, look_custom: dict | None = None) -> dict:
     shape = {fk: getattr(t.shape, attr) for fk, attr in SHAPE_KEYS.items()}
     return {"format": FORMAT, "version": 1, "id": t.key, "name": t.name, "author": t.credit,
             "description": t.blurb, "accent": color_text(t.accent), "darkOnly": t.dark_only, "shape": shape,
+            "opacity": round(t.opacity, 2),
             "light": {"wheel": pal_dict(t.light), "ui": ui_dict(t.ui_light or ui_from(t.light))},
             "dark": {"wheel": pal_dict(t.dark), "ui": ui_dict(t.ui_dark or ui_from(t.dark))},
             "sounds": {"pack": t.sounds, "files": {ev: f"sounds/{ev}.wav" for ev in t.sound_files}}}
@@ -605,7 +625,7 @@ def bake(t: Theme, custom: dict) -> Theme:
     light = resolve_with(t, dict(custom, mode="light"))
     dark = resolve_with(t, dict(custom, mode="dark"))
     return replace(t, light=light.pal, dark=dark.pal, ui_light=light.ui, ui_dark=dark.ui, shape=light.shape,
-                   accent=light.accent)
+                   accent=light.accent, opacity=light.opacity)
 
 
 def resolve_with(t: Theme, custom: dict) -> Look:

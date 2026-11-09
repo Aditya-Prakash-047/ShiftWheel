@@ -730,6 +730,21 @@ class SettingsWindow(GlassWindow):
         self.lift.toggled.connect(lambda on: self._shape("lift", on))
         g.addWidget(self.lift, r, 1)
         r += 1
+        g.addWidget(QLabel("Opacity"), r, 0)
+        row3 = QHBoxLayout()
+        self.opacity = QSlider(Qt.Horizontal)
+        self.opacity.setRange(20, 100)
+        self.opacity.setToolTip("How much of what's behind the wheel shows through. Liquid glass starts "
+                                "frosted, like macOS: colours show, text behind can't be read.")
+        self.opacity_val = QLabel("")
+        self.opacity_val.setObjectName("dim")
+        self.opacity_val.setFixedWidth(40)
+        self.opacity.valueChanged.connect(lambda v: self.opacity_val.setText(f"{v}%"))
+        self.opacity.sliderReleased.connect(lambda: self._custom("opacity", self.opacity.value()))
+        row3.addWidget(self.opacity, 1)
+        row3.addWidget(self.opacity_val)
+        g.addLayout(row3, r, 1)
+        r += 1
         reset_theme = QPushButton("Reset this theme")
         reset_theme.clicked.connect(self._reset_theme)
         g.addWidget(reset_theme, r, 1, Qt.AlignLeft)
@@ -770,7 +785,7 @@ class SettingsWindow(GlassWindow):
         c = self.s.custom(key)
         look = themes.resolve(key, c)
         self.custom_title.setText(f"CUSTOMISE {t.name.upper()}")
-        widgets = [self.mode, self.accent, self.outline, self.lift] + [s for s, _, _ in self.sliders.values()]
+        widgets = [self.mode, self.accent, self.outline, self.lift, self.opacity] + [s for s, _, _ in self.sliders.values()]
         for w in widgets:
             w.blockSignals(True)
         self.mode.setCurrentIndex([k for k, _ in themes.MODES].index(c.get("mode", "system"))
@@ -794,6 +809,8 @@ class SettingsWindow(GlassWindow):
             val.setText(f"{sl.value()}" if scale == 1 else f"{100 - sl.value()}%")
             sl.setEnabled(not glass_theme)
         self.lift.setChecked(look.shape.lift)
+        self.opacity.setValue(round(look.opacity * 100))
+        self.opacity_val.setText(f"{self.opacity.value()}%")
         self.lift.setEnabled(not glass_theme)
         for w in widgets:
             w.blockSignals(False)

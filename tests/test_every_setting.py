@@ -83,7 +83,7 @@ def test_every_control_on_every_page(window):
 def test_customise_panel_in_each_theme(window, key):
     w, store = window
     w._pick_theme(key)
-    _exercise(w, store, [w.mode, w.accent, w.outline, w.lift] + [s for s, _, _ in w.sliders.values()])
+    _exercise(w, store, [w.mode, w.accent, w.outline, w.lift, w.opacity] + [s for s, _, _ in w.sliders.values()])
     assert w.outline.isEnabled()                    # every theme, Liquid glass included, has shapes
 
 
@@ -118,3 +118,38 @@ def test_liquid_glass_follows_the_chosen_shape():
     m.ring_names, m.ring_idx = ["Convert"], 0
     assert m.hit(corner) == 0                                       # the corner is part of a slice
     m.deleteLater()
+
+
+def test_opacity_is_a_customisation_of_every_theme():
+    assert themes.resolve("glass").opacity == 0.65                 # frosted by default, like macOS
+    assert themes.resolve("ember").opacity == 1.0
+    assert themes.resolve("glass", {"opacity": 30}).opacity == 0.3
+    assert themes.resolve("santra", {"opacity": 5}).opacity == 0.2      # never invisible
+    assert themes.resolve("glass", {"opacity": "lots"}).opacity == 0.65
+    data = themes.theme_to_dict(themes.THEMES["glass"], {"opacity": 40})
+    assert data["opacity"] == 0.4 and themes.theme_from_dict(data).opacity == 0.4
+
+
+def test_default_liquid_glass_hides_text_behind_it():
+    """macOS-style frost: fine detail behind the glass (text) is blurred away, colour stays."""
+    import numpy as np
+    from PIL import Image
+
+    from shiftwheel import liquid
+    w = h = 160
+    stripes = np.zeros((h, w, 3), np.uint8)
+    for x in range(0, w, 8):
+        stripes[:, x:x + 2] = 255                                   # 2-px strokes, like small text
+    stripes[..., 0] = np.maximum(stripes[..., 0], 180)              # and a colour that should survive
+    sdf = liquid.sdf_circle(w, h, w / 2, h / 2, 70)
+
+    def detail(opacity):
+        blur, tint = themes.frost(opacity)
+        img, _ = liquid.render(Image.fromarray(stripes), sdf, liquid.GlassStyle(blur=blur, tint=tint))
+        core = np.asarray(img, np.float32)[60:100, 60:100, 1]       # the middle, away from the rim
+        return core.std(), np.asarray(img, np.float32)[60:100, 60:100, 0].mean()
+
+    sharp, _ = detail(0.2)
+    frosted, red = detail(0.65)
+    assert frosted < 4 < sharp                                      # strokes gone at the default
+    assert red > 100                                                # the colour behind still shows
