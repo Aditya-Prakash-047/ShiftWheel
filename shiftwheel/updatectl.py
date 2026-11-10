@@ -63,6 +63,7 @@ class UpdateController(QObject):
         if attempt:
             self.s.set("update_attempt", "")
             if updater.is_newer(attempt, __version__):
+                updater.log(f"the update to {attempt} didn't install; still on {__version__}")
                 QTimer.singleShot(2000, lambda: self.app.toasts.prompt(
                     f"The update to {attempt} didn't install", f"You're still on {__version__}.",
                     [("Try again", lambda: self.check(quiet=False)), ("Download page", self.open_page)], ms=60000))
@@ -113,6 +114,7 @@ class UpdateController(QObject):
         release(job)
         self.busy = False
         if isinstance(result, Exception):
+            updater.log(f"check failed: {result!r}")
             self._set_status(self._idle_status())
             if not quiet:
                 msg = str(result) if isinstance(result, UserError) else "Couldn't check for updates."
@@ -120,6 +122,7 @@ class UpdateController(QObject):
             return
         self.s.set("update_last", int(time.time()))
         self.available = result
+        updater.log(f"checked: {'version ' + result.version + ' available' if result else 'up to date'}")
         if result is None:
             self._set_status(self._idle_status() + " · up to date")
             if not quiet:
@@ -173,6 +176,7 @@ class UpdateController(QObject):
         release(job)
         if isinstance(result, Exception):
             self.busy = False
+            updater.log(f"download failed: {result!r} (cause {result.__cause__!r})")
             msg = str(result) if isinstance(result, UserError) else "The update couldn't be downloaded."
             card.error("Update failed", msg)
             self._set_status(self._idle_status())
@@ -192,6 +196,7 @@ class UpdateController(QObject):
             updater.launch_install(path, kind)
         except Exception as e:  # noqa: BLE001
             self.busy = False
+            updater.log(f"couldn't start the installer: {e!r}")
             self.app.toasts.error("Update failed", str(e))
             return
         QTimer.singleShot(600, self.app.qapp.quit)

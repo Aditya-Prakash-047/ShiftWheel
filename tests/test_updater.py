@@ -135,11 +135,32 @@ def test_download_is_verified(feed, tmp_path):
     assert not list((tmp_path / "dl").glob("*.part"))
 
 
-def test_download_refuses_a_bad_checksum(feed, tmp_path):
+def test_download_refuses_a_bad_checksum(feed, tmp_path, monkeypatch):
+    monkeypatch.setattr(updater.time, "sleep", lambda s: None)
     feed.publish("9.0.0", {"ShiftWheel.exe": b"tampered"}, good_sha=False)
     with pytest.raises(UserError, match="checksum"):
         updater.download(updater.check().asset("ShiftWheel.exe"), tmp_path / "dl")
     assert not any((tmp_path / "dl").iterdir())                      # nothing left to run
+
+
+def test_a_dropped_download_is_retried(feed, tmp_path, monkeypatch, capsys):
+    """Regression: one dropped connection made the whole update fail, with nothing in the log."""
+    monkeypatch.setattr(updater.time, "sleep", lambda s: None)
+    data = b"new build " * 5000
+    feed.publish("9.0.0", {"ShiftWheel.exe": data})
+    asset = updater.check().asset("ShiftWheel.exe")
+    real, calls = updater._get, []
+
+    def flaky(url, timeout=10.0, accept="application/vnd.github+json"):
+        calls.append(accept)
+        if len(calls) == 1:
+            raise TimeoutError("read timed out")
+        return real(url, timeout, accept)
+    monkeypatch.setattr(updater, "_get", flaky)
+    assert updater.download(asset, tmp_path / "dl").read_bytes() == data
+    assert calls == ["application/octet-stream"] * 2                # a file, not GitHub's JSON
+    out = capsys.readouterr().out
+    assert "download 1/3 of ShiftWheel.exe failed" in out and "downloaded and verified" in out
 
 
 def test_asset_for_each_kind():

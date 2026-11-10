@@ -104,10 +104,17 @@ def asset_name(kind: str | None = None) -> str | None:
 
 
 # ---------------------------------------------------------------- check
-def _get(url: str, timeout: float = 10.0):
-    req = urllib.request.Request(url, headers={"User-Agent": f"ShiftWheel/{__version__}",
-                                               "Accept": "application/vnd.github+json"})
+def _get(url: str, timeout: float = 10.0, accept: str = "application/vnd.github+json"):
+    req = urllib.request.Request(url, headers={"User-Agent": f"ShiftWheel/{__version__}", "Accept": accept})
     return urllib.request.urlopen(req, timeout=timeout)
+
+
+def log(msg: str) -> None:
+    """One line in ShiftWheel's log (stdout is the log file in the installed app)."""
+    try:
+        print(f"update: {msg}", flush=True)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def fetch_latest(feed: str | None = None) -> Release:
@@ -178,9 +185,22 @@ def _matches(path: Path, asset: Asset) -> bool:
 
 
 def download(asset: Asset, folder: Path | None = None,
-             progress: Callable[[float], None] | None = None) -> Path:
+             progress: Callable[[float], None] | None = None, tries: int = 3) -> Path:
     """Download to a temp folder and check size and SHA-256. Returns the verified file;
-    a verified copy from an earlier try is reused instead of downloading it again."""
+    a verified copy from an earlier try is reused instead of downloading it again. A dropped
+    connection or a damaged download is retried (`tries` times in all) before giving up."""
+    for attempt in range(1, tries + 1):
+        try:
+            return _download_once(asset, folder, progress)
+        except UserError as e:
+            log(f"download {attempt}/{tries} of {asset.name} failed: {e} ({e.__cause__!r})")
+            if attempt == tries:
+                raise
+            time.sleep(2 * attempt)
+    raise UserError("The download failed.")             # not reached
+
+
+def _download_once(asset: Asset, folder: Path | None, progress: Callable[[float], None] | None) -> Path:
     folder = Path(folder or tempfile.mkdtemp(prefix="ShiftWheel-update-"))
     folder.mkdir(parents=True, exist_ok=True)
     out = folder / asset.name
@@ -192,7 +212,7 @@ def download(asset: Asset, folder: Path | None = None,
     h = hashlib.sha256()
     got = 0
     try:
-        with _get(asset.url, timeout=30) as r, open(part, "wb") as f:
+        with _get(asset.url, timeout=30, accept="application/octet-stream") as r, open(part, "wb") as f:
             total = asset.size or int(r.headers.get("Content-Length") or 0)
             while True:
                 chunk = r.read(1 << 16)
@@ -213,6 +233,7 @@ def download(asset: Asset, folder: Path | None = None,
         part.unlink(missing_ok=True)
         raise UserError("The downloaded file didn't match its published checksum, so it wasn't installed.")
     os.replace(part, out)
+    log(f"downloaded and verified {out} ({got:,} bytes)")
     return out
 
 
@@ -270,6 +291,7 @@ def launch_install(downloaded: Path, kind: str | None = None) -> None:
     """Start the finishing script, detached. The caller then quits the app."""
     kind = kind or install_kind()
     script, cmd = install_script(kind, downloaded, os.getpid(), current_target(kind))
+    log(f"starting {script} ({kind})")
     if sys.platform == "win32":
         subprocess.Popen(cmd, creationflags=LAUNCH_FLAGS, close_fds=True, cwd=str(script.parent))
     else:

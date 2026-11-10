@@ -940,11 +940,14 @@ def setup_logging():
     path = base / "log.txt"
     if path.exists() and path.stat().st_size > 1_000_000:
         path.replace(base / "log.old.txt")
-    f = open(path, "a", encoding="utf-8", buffering=1)
+    f = open(path, "a", encoding="utf-8", errors="replace", buffering=1)
     f.write(f"\n==== ShiftWheel {VERSION} started {time.strftime('%Y-%m-%d %H:%M:%S')} ====\n")
     if sys.stderr is None or getattr(sys, "frozen", False) or sys.executable.lower().endswith("pythonw.exe"):
         sys.stdout = sys.stderr = f
-    faulthandler.enable(f)
+    # On Windows, faulthandler also reports exceptions that COM raises and then handles itself
+    # (0x8001010e from the tray's file dialogs): thousands of false "fatal" lines. Debug runs only.
+    if not IS_WIN or os.environ.get("SHIFTWHEEL_DEBUG"):
+        faulthandler.enable(f)
 
     def hook(t, v, tb):
         f.write("Unhandled: " + "".join(traceback.format_exception(t, v, tb)))
