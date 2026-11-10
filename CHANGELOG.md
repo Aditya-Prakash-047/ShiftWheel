@@ -2,6 +2,13 @@
 
 All notable changes to ShiftWheel. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [1.5.1] - 2026-11-10
+
+### Fixed
+- An update stopped by a dropped connection now retries by itself (three tries) instead of failing.
+- Every update step (check, download, install) is written to the log, so a failure says why.
+- The Windows log no longer fills with thousands of false "fatal exception" lines.
+
 ## [1.5.0] - 2026-11-09
 
 ### Added
